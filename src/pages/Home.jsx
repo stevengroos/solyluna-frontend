@@ -20,8 +20,8 @@ export default function Home() {
   const [soloConStock, setSoloConStock] = useState(false);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
   
-  // --- NUEVO: Estado para ordenar por precio ---
-  const [ordenPrecio, setOrdenPrecio] = useState(''); // '': por defecto, 'asc': menor a mayor, 'desc': mayor a menor
+  // Estado para ordenar por precio
+  const [ordenPrecio, setOrdenPrecio] = useState(''); 
 
   // Paginación (12 productos por página)
   const [paginaActual, setPaginaActual] = useState(1);
@@ -29,6 +29,15 @@ export default function Home() {
 
   const { darkMode, colors } = useContext(ThemeContext);
   const API_URL = import.meta.env.VITE_API_URL;
+
+  // --- NUEVO: Detector de pantalla móvil para estilos responsivos ---
+  const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const manejarResize = () => setEsMovil(window.innerWidth < 768);
+    window.addEventListener('resize', manejarResize);
+    return () => window.removeEventListener('resize', manejarResize);
+  }, []);
 
   useEffect(() => {
     const fetchDatos = async () => {
@@ -66,14 +75,14 @@ export default function Home() {
     return coincideTexto && coincideMin && coincideMax && coincideStock && coincideCategoria;
   });
 
-  // 2. LÓGICA DE ORDENAMIENTO (NUEVO)
+  // 2. LÓGICA DE ORDENAMIENTO
   const productosOrdenados = [...productosFiltrados].sort((a, b) => {
-    if (ordenPrecio === 'asc') return a.price - b.price; // Menor a mayor
-    if (ordenPrecio === 'desc') return b.price - a.price; // Mayor a menor
-    return 0; // Orden por defecto (como viene de la BD)
+    if (ordenPrecio === 'asc') return a.price - b.price; 
+    if (ordenPrecio === 'desc') return b.price - a.price; 
+    return 0; 
   });
 
-  // 3. LÓGICA DE PAGINACIÓN (Aplicada a los productos ya ordenados)
+  // 3. LÓGICA DE PAGINACIÓN
   const totalProductos = productosOrdenados.length;
   const totalPaginas = Math.ceil(totalProductos / productosPorPagina);
   
@@ -86,7 +95,7 @@ export default function Home() {
     setPrecioMax('');
     setSoloConStock(false);
     setCategoriaSeleccionada(''); 
-    setOrdenPrecio(''); // <-- Limpiamos el ordenamiento también
+    setOrdenPrecio(''); 
   };
 
   if (cargando) return <div style={{ padding: '50px', textAlign: 'center', color: colors.textoBlanco, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>Cargando catálogo...</div>;
@@ -97,24 +106,31 @@ export default function Home() {
       
       <Header filtroTexto={filtroTexto} setFiltroTexto={setFiltroTexto} />
 
-      <div style={{ display: 'flex', gap: '30px', padding: '30px 40px' }}>
+      {/* El contenedor principal ahora cambia dinámicamente de fila a columna */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: esMovil ? 'column' : 'row', 
+        gap: '25px', 
+        padding: esMovil ? '15px' : '30px 40px' 
+      }}>
         
-        {/* Barra Lateral Adaptativa */}
+        {/* Barra Lateral / Superior de Filtros */}
         <aside style={{ 
-          flex: '0 0 280px', 
+          flex: esMovil ? '1 1 auto' : '0 0 280px', 
           backgroundColor: colors.bgCards, 
           padding: '25px', 
           borderRadius: '12px', 
           boxShadow: colors.shadow, 
           height: 'fit-content',
-          position: 'sticky',
+          position: esMovil ? 'static' : 'sticky', // Ya no se queda fija rompiendo el scroll en celular
           top: '100px',
           border: colors.borderCard,
-          transition: 'background-color 0.3s'
+          transition: 'background-color 0.3s',
+          boxSizing: 'border-box'
         }}>
           <h2 style={{ fontSize: '18px', marginTop: 0, borderBottom: darkMode ? '1px solid #334155' : '1px solid #eee', paddingBottom: '10px', color: colors.textoBlanco }}>Filtrar por</h2>
           
-          {/* CATEGORÍAS ESCALABLES (Dropdown) */}
+          {/* CATEGORÍAS */}
           {categorias.length > 0 && (
             <div style={{ marginBottom: '20px', marginTop: '15px' }}>
               <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: colors.textoGris }}>Categoría:</label>
@@ -131,7 +147,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ORDENAR POR PRECIO (NUEVO) */}
+          {/* ORDENAR POR PRECIO */}
           <div style={{ marginBottom: '25px' }}>
             <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: colors.textoGris }}>Ordenar precios:</label>
             <select 
@@ -166,8 +182,8 @@ export default function Home() {
         </aside>
 
         {/* Bloque de Productos */}
-        <main style={{ flex: 1 }}>
-          <div style={{ marginBottom: '20px', fontSize: '15px', color: colors.textoGris, backgroundColor: colors.bgCards, padding: '10px 15px', borderRadius: '8px', border: colors.borderCard, display: 'inline-block' }}>
+        <main style={{ flex: 1, width: '100%' }}>
+          <div style={{ marginBottom: '20px', fontSize: '15px', color: colors.textoGris, backgroundColor: colors.bgCards, padding: '10px 15px', borderRadius: '8px', border: colors.borderCard, display: 'inline-block', width: esMovil ? '100%' : 'auto', boxSizing: 'border-box', textAlign: 'center' }}>
             <b>{totalProductos} producto(s) encontrado(s)</b>
           </div>
 
@@ -177,7 +193,12 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '25px' }}>
+              {/* Ajustamos la cuadrícula para que en pantallas súper chicas se adapte a 1 sola columna sin romperse */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: esMovil ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', 
+                gap: '20px' 
+              }}>
                 {productosVisibles.map((p) => (
                   <div key={p.id} style={{ backgroundColor: colors.bgCards, borderRadius: '12px', overflow: 'hidden', boxShadow: colors.shadow, display: 'flex', flexDirection: 'column', border: colors.borderCard, transition: 'transform 0.2s' }}>
                     <div style={{ height: '220px', padding: '15px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -194,9 +215,11 @@ export default function Home() {
                       <div style={{ fontSize: '12px', color: p.stock > 0 ? (darkMode ? '#34d399' : '#155724') : (darkMode ? '#f87171' : '#721c24'), backgroundColor: p.stock > 0 ? (darkMode ? 'rgba(52, 211, 153, 0.1)' : '#d4edda') : (darkMode ? 'rgba(248, 113, 113, 0.1)' : '#f8d7da'), padding: '6px 12px', borderRadius: '20px', display: 'inline-block', width: 'fit-content', marginBottom: '15px' }}>
                         {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
                       </div>
-                     <button 
-  onClick={() => navigate(`/producto/${p.id}`)} // <-- CONECTADO AQUÍ
-  disabled={p.stock === 0} style={{ width: '100%', padding: '12px', backgroundColor: p.stock > 0 ? colors.colorAcento : (darkMode ? '#475569' : '#bdc3c7'), color: p.stock > 0 ? (darkMode ? '#0f172a' : '#fff') : '#94a3b8', border: 'none', borderRadius: '8px', cursor: p.stock > 0 ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '14px', transition: 'background-color 0.2s' }}>
+                      <button 
+                        onClick={() => navigate(`/producto/${p.id}`)} 
+                        disabled={p.stock === 0} 
+                        style={{ width: '100%', padding: '12px', backgroundColor: p.stock > 0 ? colors.colorAcento : (darkMode ? '#475569' : '#bdc3c7'), color: p.stock > 0 ? (darkMode ? '#0f172a' : '#fff') : '#94a3b8', border: 'none', borderRadius: '8px', cursor: p.stock > 0 ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '14px', transition: 'background-color 0.2s' }}
+                      >
                         Ver detalles
                       </button>
                     </div>
@@ -204,19 +227,20 @@ export default function Home() {
                 ))}
               </div>
 
+              {/* Flechas de paginación responsivas */}
               {totalPaginas > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '40px', padding: '20px 0' }}>
-                  <button onClick={() => setPaginaActual(p => Math.max(p - 1, 1))} disabled={paginaActual === 1} style={{ padding: '10px 15px', border: '1px solid', borderColor: colors.borderInputs, borderRadius: '6px', backgroundColor: colors.bgCards, cursor: paginaActual === 1 ? 'not-allowed' : 'pointer', color: colors.textoGris }}>«</button>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '30px', padding: '10px 0', flexWrap: 'wrap' }}>
+                  <button onClick={() => setPaginaActual(p => Math.max(p - 1, 1))} disabled={paginaActual === 1} style={{ padding: '10px 14px', border: '1px solid', borderColor: colors.borderInputs, borderRadius: '6px', backgroundColor: colors.bgCards, cursor: paginaActual === 1 ? 'not-allowed' : 'pointer', color: colors.textoGris }}>«</button>
                   {Array.from({ length: totalPaginas }, (_, index) => {
                     const numeroPagina = index + 1;
                     const esActiva = numeroPagina === paginaActual;
                     return (
-                      <button key={numeroPagina} onClick={() => setPaginaActual(numeroPagina)} style={{ padding: '10px 16px', border: '1px solid', borderColor: esActiva ? colors.colorAcento : colors.borderInputs, borderRadius: '6px', backgroundColor: esActiva ? colors.colorAcento : colors.bgCards, color: esActiva ? (darkMode ? '#0f172a' : '#fff') : colors.textoBlanco, fontWeight: 'bold', cursor: 'pointer' }}>
+                      <button key={numeroPagina} onClick={() => setPaginaActual(numeroPagina)} style={{ padding: '10px 14px', border: '1px solid', borderColor: esActiva ? colors.colorAcento : colors.borderInputs, borderRadius: '6px', backgroundColor: esActiva ? colors.colorAcento : colors.bgCards, color: esActiva ? (darkMode ? '#0f172a' : '#fff') : colors.textoBlanco, fontWeight: 'bold', cursor: 'pointer' }}>
                         {numeroPagina}
                       </button>
                     );
                   })}
-                  <button onClick={() => setPaginaActual(p => Math.min(p + 1, totalPaginas))} disabled={paginaActual === totalPaginas} style={{ padding: '10px 15px', border: '1px solid', borderColor: colors.borderInputs, borderRadius: '6px', backgroundColor: colors.bgCards, cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer', color: colors.textoGris }}>»</button>
+                  <button onClick={() => setPaginaActual(p => Math.min(p + 1, totalPaginas))} disabled={paginaActual === totalPaginas} style={{ padding: '10px 14px', border: '1px solid', borderColor: colors.borderInputs, borderRadius: '6px', backgroundColor: colors.bgCards, cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer', color: colors.textoGris }}>»</button>
                 </div>
               )}
             </>
