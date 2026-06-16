@@ -26,7 +26,7 @@ export default function AdminPanel() {
     title: '', description: '', price: '', stock: '', image: null, category_id: ''
   });
 
-  // --- NUEVO ESTADO: Modal de Edición ---
+  // Modal de Edición
   const [productoEditando, setProductoEditando] = useState(null);
 
   // Estados Tabla Productos
@@ -35,6 +35,15 @@ export default function AdminPanel() {
   const [stockBorrador, setStockBorrador] = useState({}); 
 
   const productosPorPagina = 20;
+
+  // --- NUEVO: Detector de pantalla móvil para el panel administrativo ---
+  const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const manejarResize = () => setEsMovil(window.innerWidth < 768);
+    window.addEventListener('resize', manejarResize);
+    return () => window.removeEventListener('resize', manejarResize);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -152,7 +161,7 @@ export default function AdminPanel() {
     }
   };
 
-  // --- NUEVA LÓGICA: GUARDAR EDICIÓN DEL PRODUCTO ---
+  // --- GUARDAR EDICIÓN DEL PRODUCTO ---
   const guardarEdicionProducto = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('adminToken');
@@ -163,7 +172,6 @@ export default function AdminPanel() {
     formData.append('price', productoEditando.price);
     if (productoEditando.category_id) formData.append('category_id', productoEditando.category_id);
     
-    // Solo anexamos imagen si el usuario subió una nueva en el modal
     if (productoEditando.nueva_imagen) {
       formData.append('image', productoEditando.nueva_imagen);
     }
@@ -174,8 +182,8 @@ export default function AdminPanel() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
       mostrarMensaje('¡Cambios guardados con éxito!', 'success');
-      setProductoEditando(null); // Cierra el modal
-      cargarDatos(); // Refresca la tabla
+      setProductoEditando(null); 
+      cargarDatos(); 
     } catch (err) {
       mostrarMensaje(err.response?.data?.detail || 'Error al editar producto.', 'error');
     } finally {
@@ -187,7 +195,6 @@ export default function AdminPanel() {
   const agregarProductosMultiples = async (categoriaId) => {
     if (productosSeleccionados.length === 0) return;
     const token = localStorage.getItem('adminToken');
-    const API_URL = import.meta.env.VITE_API_URL;
     try {
       await Promise.all(productosSeleccionados.map(prodId => axios.put(`${API_URL}/api/products/${prodId}/category`, { category_id: categoriaId }, { headers: { Authorization: `Bearer ${token}` } })));
       setProductos(productos.map(p => productosSeleccionados.includes(p.id) ? { ...p, category_id: categoriaId } : p));
@@ -200,7 +207,6 @@ export default function AdminPanel() {
 
   const quitarProductoDeCategoria = async (productoId) => {
     const token = localStorage.getItem('adminToken');
-    const API_URL = import.meta.env.VITE_API_URL;
     try {
       await axios.put(`${API_URL}/api/products/${productoId}/category`, { category_id: null }, { headers: { Authorization: `Bearer ${token}` } });
       setProductos(productos.map(p => p.id === parseInt(productoId) ? { ...p, category_id: null } : p));
@@ -222,16 +228,29 @@ export default function AdminPanel() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* Header */}
-      <div style={{ backgroundColor: colors.bgCards, padding: '15px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: colors.shadow, borderBottom: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
+      {/* Header Responsivo */}
+      <div style={{ 
+        backgroundColor: colors.bgCards, 
+        padding: esMovil ? '15px 20px' : '15px 40px', 
+        display: 'flex', 
+        flexDirection: esMovil ? 'column' : 'row',
+        gap: esMovil ? '12px' : '0px',
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        boxShadow: colors.shadow, 
+        borderBottom: darkMode ? '1px solid #334155' : '1px solid #e2e8f0', 
+        position: 'sticky', 
+        top: 0, 
+        zIndex: 100 
+      }}>
         <h1 style={{ margin: 0, fontSize: '20px', color: colors.colorAcento, fontWeight: '800' }}>SOL&LUNA <span style={{ color: colors.textoGris, fontWeight: '400', fontSize: '16px' }}>/ Workspace</span></h1>
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', width: esMovil ? '100%' : 'auto', justifyContent: esMovil ? 'space-between' : 'flex-end' }}>
           <Link to="/" style={{ color: colors.textoGris, textDecoration: 'none', fontWeight: '500', fontSize: '14px' }}>Ir a la Tienda ↗</Link>
           <button onClick={cerrarSesion} style={{ backgroundColor: 'transparent', color: colors.colorRojo, border: `1px solid ${colors.colorRojo}`, padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cerrar Sesión</button>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: esMovil ? '0 15px' : '0 20px' }}>
         
         {mensaje.texto && (
           <div style={{ backgroundColor: mensaje.tipo === 'success' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: '1px solid', borderColor: mensaje.tipo === 'success' ? '#34d399' : '#ef4444', color: mensaje.tipo === 'success' ? '#34d399' : '#f87171', padding: '15px', borderRadius: '8px', marginBottom: '25px', fontSize: '14px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -239,25 +258,42 @@ export default function AdminPanel() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', borderBottom: `1px solid ${colors.borderInputs}`, paddingBottom: '15px' }}>
-          <button onClick={() => setTabActiva('productos')} style={{ background: tabActiva === 'productos' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'productos' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'productos' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Inventario ({productos.length})</button>
-          <button onClick={() => setTabActiva('categorias')} style={{ background: tabActiva === 'categorias' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'categorias' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'categorias' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Categorías ({categorias.length})</button>
-          <button onClick={() => setTabActiva('nuevo-producto')} style={{ background: tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'nuevo-producto' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Publicar Producto</button>
+        {/* Menú de pestañas deslizable horizontalmente en teléfonos */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '10px', 
+          marginBottom: '30px', 
+          borderBottom: `1px solid ${colors.borderInputs}`, 
+          paddingBottom: '15px',
+          overflowX: esMovil ? 'auto' : 'visible',
+          whiteSpace: 'nowrap',
+          WebkitOverflowScrolling: 'touch'
+        }}>
+          <button onClick={() => setTabActiva('productos')} style={{ flexShrink: 0, background: tabActiva === 'productos' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'productos' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'productos' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Inventario ({productos.length})</button>
+          <button onClick={() => setTabActiva('categorias')} style={{ flexShrink: 0, background: tabActiva === 'categorias' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'categorias' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'categorias' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Categorías ({categorias.length})</button>
+          <button onClick={() => setTabActiva('nuevo-producto')} style={{ flexShrink: 0, background: tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'nuevo-producto' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Publicar Producto</button>
         </div>
 
         {/* PESTAÑA PRODUCTOS */}
         {tabActiva === 'productos' && (
-          <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', border: colors.borderCard, padding: '30px', boxShadow: colors.shadow }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', border: colors.borderCard, padding: esMovil ? '20px' : '30px', boxShadow: colors.shadow }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: esMovil ? 'column' : 'row',
+              gap: esMovil ? '15px' : '0px',
+              justifyContent: 'space-between', 
+              alignItems: esMovil ? 'flex-start' : 'center', 
+              marginBottom: '20px' 
+            }}>
               <h3 style={{ margin: 0, fontSize: '18px' }}>Gestión General</h3>
-              <div style={{ position: 'relative', width: '350px' }}>
+              <div style={{ position: 'relative', width: esMovil ? '100%' : '350px' }}>
                 <span style={{ position: 'absolute', left: '12px', top: '10px', fontSize: '14px' }}>🔍</span>
                 <input type="text" placeholder="Buscar productos..." value={filtroTablaProductos} onChange={e => setFiltroTablaProductos(e.target.value)} style={{ width: '100%', padding: '10px 10px 10px 35px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}/>
               </div>
             </div>
 
             <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${colors.borderInputs}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px', minWidth: '650px' }}>
                 <thead>
                   <tr style={{ backgroundColor: colors.bgInputs, color: colors.textoGris }}>
                     <th style={{ padding: '15px' }}>Imagen</th><th style={{ padding: '15px' }}>Producto</th><th style={{ padding: '15px' }}>Precio Base</th><th style={{ padding: '15px', width: '150px' }}>Existencias</th><th style={{ padding: '15px' }}>Categoría</th><th style={{ padding: '15px', textAlign: 'center' }}>Acciones</th>
@@ -294,9 +330,8 @@ export default function AdminPanel() {
                         
                         <td style={{ padding: '15px' }}><span style={{ backgroundColor: catAsociada ? colors.bgInputs : 'transparent', border: catAsociada ? `1px solid ${colors.borderInputs}` : 'none', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', color: catAsociada ? colors.textoBlanco : colors.textoGris }}>{catAsociada ? catAsociada.name : 'Sin asignar'}</span></td>
                         
-                        {/* Botón Editar Modal */}
                         <td style={{ padding: '15px', textAlign: 'center' }}>
-                          <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }} onMouseEnter={e => {e.target.style.backgroundColor=colors.colorAcento; e.target.style.color='#fff'}} onMouseLeave={e => {e.target.style.backgroundColor='transparent'; e.target.style.color=colors.colorAcento}}>
+                          <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                           Editar
                           </button>
                         </td>
@@ -309,7 +344,7 @@ export default function AdminPanel() {
             
             {/* Paginación */}
             {totalPaginasProd > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', fontSize: '14px', color: colors.textoGris }}>
+              <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: esMovil ? '12px' : '0px', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', fontSize: '14px', color: colors.textoGris }}>
                 <span>Mostrando {idxPrimerProd + 1} - {Math.min(idxUltimoProd, productosTablaFiltrados.length)} de {productosTablaFiltrados.length}</span>
                 <div style={{ display: 'flex', gap: '5px' }}>
                   <button onClick={() => setPaginaActualProd(p => Math.max(p - 1, 1))} disabled={paginaActualProd === 1} style={{ padding: '8px 12px', border: `1px solid ${colors.borderInputs}`, borderRadius: '6px', backgroundColor: colors.bgInputs, cursor: 'pointer', color: colors.textoGris }}>Anterior</button>
@@ -320,24 +355,28 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* Las demás pestañas Categorías y Nuevo Producto siguen idénticas aquí... */}
-        {/* PESTAÑA CATEGORÍAS */}
+        {/* PESTAÑA CATEGORÍAS RESPONSIVA */}
         {tabActiva === 'categorias' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 400px) 1fr', gap: '30px', alignItems: 'start' }}>
-            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: '30px', border: colors.borderCard, boxShadow: colors.shadow, position: 'sticky', top: '100px' }}>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: esMovil ? '1fr' : 'minmax(300px, 400px) 1fr', 
+            gap: '25px', 
+            alignItems: 'start' 
+          }}>
+            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: '30px', border: colors.borderCard, boxShadow: colors.shadow, position: esMovil ? 'static' : 'sticky', top: '100px' }}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Nueva Categoría</h3>
               <p style={{ fontSize: '13px', color: colors.textoGris, marginBottom: '20px' }}>Organiza tu catálogo creando secciones específicas.</p>
               
               <form onSubmit={guardarCategoria}>
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Nombre de la categoría</label>
-                  <input type="text" required placeholder="Ej: Electrónica, Accesorios..." value={nuevaCategoria} onChange={(e) => setNuevaCategoria(e.target.value)} style={{ width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', boxSizing: 'border-box', fontSize: '14px', transition: 'border-color 0.2s' }} onFocus={e => e.target.style.borderColor = colors.colorAcento} onBlur={e => e.target.style.borderColor = colors.borderInputs}/>
+                  <input type="text" required placeholder="Ej: Electrónica, Accesorios..." value={nuevaCategoria} onChange={(e) => setNuevaCategoria(e.target.value)} style={{ width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', boxSizing: 'border-box', fontSize: '14px' }}/>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: colors.colorAcento, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', transition: 'filter 0.2s' }}>Crear y Guardar</button>
+                <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: colors.colorAcento, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Crear y Guardar</button>
               </form>
             </div>
 
-            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: '30px', border: colors.borderCard, boxShadow: colors.shadow }}>
+            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: esMovil ? '20px' : '30px', border: colors.borderCard, boxShadow: colors.shadow }}>
               <h3 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>Estructura del Catálogo</h3>
               <p style={{ fontSize: '13px', color: colors.textoGris, marginBottom: '25px' }}>Haz clic en una categoría para administrar los productos que contiene.</p>
               
@@ -348,24 +387,24 @@ export default function AdminPanel() {
                   const resultadosBusqueda = productos.filter(p => p.category_id !== c.id && !productosSeleccionados.includes(p.id) && p.title.toLowerCase().includes(busquedaProductoCat.toLowerCase())).slice(0, 7);
 
                   return (
-                    <div key={c.id} style={{ border: `1px solid ${estaExpandida ? colors.colorAcento : colors.borderInputs}`, borderRadius: '10px', overflow: 'hidden', transition: 'all 0.3s' }}>
+                    <div key={c.id} style={{ border: `1px solid ${estaExpandida ? colors.colorAcento : colors.borderInputs}`, borderRadius: '10px', overflow: 'hidden' }}>
                       <div onClick={() => {setCategoriaExpandida(estaExpandida ? null : c.id); setProductosSeleccionados([]); setBusquedaProductoCat('');}} style={{ padding: '18px 20px', backgroundColor: estaExpandida ? (darkMode ? 'rgba(56, 189, 248, 0.05)' : '#f0f9ff') : 'transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                         <span style={{ fontWeight: '600', color: estaExpandida ? colors.colorAcento : colors.textoBlanco, fontSize: '15px' }}>{c.name}</span>
                         <span style={{ fontSize: '12px', color: colors.textoGris, backgroundColor: colors.bgInputs, padding: '4px 10px', borderRadius: '20px', fontWeight: '500' }}>{productosDeEstaCat.length} artículos</span>
                       </div>
 
                       {estaExpandida && (
-                        <div style={{ padding: '20px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', borderTop: `1px solid ${colors.borderInputs}` }}>
+                        <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', borderTop: `1px solid ${colors.borderInputs}` }}>
                           <div style={{ marginBottom: '25px' }}>
                             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: colors.textoGris, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contenido Actual</h4>
                             {productosDeEstaCat.length === 0 ? (
-                              <div style={{ padding: '15px', backgroundColor: colors.bgCards, borderRadius: '8px', border: `1px dashed ${colors.borderInputs}`, color: colors.textoGris, fontSize: '13px', textAlign: 'center' }}>Carpeta vacía. Utiliza el buscador de abajo para añadir.</div>
+                              <div style={{ padding: '15px', backgroundColor: colors.bgCards, borderRadius: '8px', border: `1px dashed ${colors.borderInputs}`, color: colors.textoGris, fontSize: '13px', textAlign: 'center' }}>Carpeta vacía.</div>
                             ) : (
                               <div style={{ border: `1px solid ${colors.borderInputs}`, borderRadius: '8px', overflow: 'hidden' }}>
                                 {productosDeEstaCat.map((p, idx) => (
                                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 15px', backgroundColor: colors.bgCards, borderBottom: idx !== productosDeEstaCat.length - 1 ? `1px solid ${colors.borderInputs}` : 'none', fontSize: '13px' }}>
-                                    <span>{p.title}</span>
-                                    <button onClick={() => quitarProductoDeCategoria(p.id)} style={{ background: 'none', border: 'none', color: colors.colorRojo, cursor: 'pointer', fontSize: '12px', padding: '4px 8px', borderRadius: '4px' }}>Quitar</button>
+                                    <span style={{ marginRight: '10px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</span>
+                                    <button onClick={() => quitarProductoDeCategoria(p.id)} style={{ background: 'none', border: 'none', color: colors.colorRojo, cursor: 'pointer', fontSize: '12px', padding: '4px 8px', flexShrink: 0 }}>Quitar</button>
                                   </div>
                                 ))}
                               </div>
@@ -378,17 +417,17 @@ export default function AdminPanel() {
                                 {productosSeleccionados.map(id => {
                                   const prod = productos.find(x => x.id === id);
                                   return (
-                                    <div key={id} style={{ backgroundColor: colors.colorAcento, color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                                      {prod?.title}
+                                    <div key={id} style={{ backgroundColor: colors.colorAcento, color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
+                                      <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod?.title}</span>
                                       <span style={{ cursor: 'pointer', backgroundColor: 'rgba(0,0,0,0.2)', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }} onClick={() => setProductosSeleccionados(productosSeleccionados.filter(x => x !== id))}>✕</span>
                                     </div>
                                   )
                                 })}
                               </div>
                             )}
-                            <div style={{ display: 'flex', gap: '10px' }}>
+                            <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: '10px' }}>
                               <div style={{ flex: 1, position: 'relative' }}>
-                                <input type="text" placeholder="🔍 Buscar por nombre para añadir..." value={busquedaProductoCat} onChange={(e) => setBusquedaProductoCat(e.target.value)} style={{ width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgCards, color: colors.textoBlanco, outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+                                <input type="text" placeholder="🔍 Buscar para añadir..." value={busquedaProductoCat} onChange={(e) => setBusquedaProductoCat(e.target.value)} style={{ width: '100%', padding: '12px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgCards, color: colors.textoBlanco, outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
                                 {busquedaProductoCat && (
                                   <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, backgroundColor: colors.bgPrincipal, border: `1px solid ${colors.borderInputs}`, borderRadius: '8px', zIndex: 10, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
                                     {resultadosBusqueda.length === 0 ? (
@@ -403,7 +442,7 @@ export default function AdminPanel() {
                                   </div>
                                 )}
                               </div>
-                              <button onClick={() => agregarProductosMultiples(c.id)} disabled={productosSeleccionados.length === 0} style={{ padding: '0 20px', backgroundColor: productosSeleccionados.length > 0 ? '#10b981' : colors.borderInputs, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: productosSeleccionados.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.2s', fontSize: '13px' }}>Guardar</button>
+                              <button onClick={() => agregarProductosMultiples(c.id)} disabled={productosSeleccionados.length === 0} style={{ padding: '12px 20px', backgroundColor: productosSeleccionados.length > 0 ? '#10b981' : colors.borderInputs, color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: productosSeleccionados.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px' }}>Guardar</button>
                             </div>
                           </div>
                         </div>
@@ -416,10 +455,10 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* PESTAÑA NUEVO PRODUCTO */}
+        {/* PESTAÑA NUEVO PRODUCTO RESPONSIVA */}
         {tabActiva === 'nuevo-producto' && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: '40px', border: colors.borderCard, boxShadow: colors.shadow, width: '100%', maxWidth: '800px' }}>
+            <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: esMovil ? '25px 20px' : '40px', border: colors.borderCard, boxShadow: colors.shadow, width: '100%', maxWidth: '800px' }}>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '22px' }}>Publicar un Artículo</h3>
                 <p style={{ fontSize: '14px', color: colors.textoGris, margin: 0 }}>Completa la ficha técnica para que el producto aparezca en la tienda.</p>
@@ -440,7 +479,7 @@ export default function AdminPanel() {
 
                 <div style={{ marginBottom: '25px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', padding: '25px', borderRadius: '12px', border: `1px solid ${colors.borderInputs}` }}>
                   <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: colors.colorAcento, textTransform: 'uppercase', letterSpacing: '0.5px' }}>2. Inventario y Costos</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : '1fr 1fr', gap: '20px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Precio de Venta (Gs.) *</label>
                       <input type="number" required value={formProducto.price} onChange={e => setFormProducto({...formProducto, price: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} />
@@ -454,7 +493,7 @@ export default function AdminPanel() {
 
                 <div style={{ marginBottom: '35px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', padding: '25px', borderRadius: '12px', border: `1px solid ${colors.borderInputs}` }}>
                   <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: colors.colorAcento, textTransform: 'uppercase', letterSpacing: '0.5px' }}>3. Visual y Clasificación</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : '1fr 1fr', gap: '20px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Categoría Principal</label>
                       <select value={formProducto.category_id} onChange={e => setFormProducto({...formProducto, category_id: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '14px', cursor: 'pointer' }}>
@@ -477,26 +516,26 @@ export default function AdminPanel() {
 
       </div>
 
-      {/* ================= MODAL FLOTANTE DE EDICIÓN ================= */}
+      {/* ================= MODAL FLOTANTE DE EDICIÓN RESPONSIVO ================= */}
       {productoEditando && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ backgroundColor: colors.bgCards, width: '100%', maxWidth: '600px', borderRadius: '16px', border: colors.borderCard, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: esMovil ? '10px' : '20px' }}>
+          <div style={{ backgroundColor: colors.bgCards, width: '100%', maxWidth: '600px', borderRadius: '16px', border: colors.borderCard, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '95vh' }}>
             
             {/* Header del Modal */}
             <div style={{ padding: '20px 25px', borderBottom: `1px solid ${colors.borderInputs}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.bgInputs }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: colors.textoBlanco }}>Editar: {productoEditando.title}</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: colors.textoBlanco, maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Editar: {productoEditando.title}</h2>
               <button onClick={() => setProductoEditando(null)} style={{ background: 'none', border: 'none', color: colors.textoGris, fontSize: '24px', cursor: 'pointer', lineHeight: '1' }}>&times;</button>
             </div>
 
-            {/* Cuerpo del Modal (Scrolleable) */}
-            <div style={{ padding: '25px', overflowY: 'auto', flex: 1 }}>
+            {/* Cuerpo del Modal */}
+            <div style={{ padding: esMovil ? '15px' : '25px', overflowY: 'auto', flex: 1 }}>
               <form id="editForm" onSubmit={guardarEdicionProducto}>
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Título</label>
                   <input type="text" required value={productoEditando.title} onChange={e => setProductoEditando({...productoEditando, title: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none' }} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Precio (Gs.)</label>
                     <input type="number" required value={productoEditando.price} onChange={e => setProductoEditando({...productoEditando, price: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none' }} />
@@ -515,11 +554,11 @@ export default function AdminPanel() {
                   <textarea rows="3" value={productoEditando.description} onChange={e => setProductoEditando({...productoEditando, description: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', resize: 'vertical' }}></textarea>
                 </div>
 
-                <div style={{ backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '8px', border: `1px dashed ${colors.borderInputs}`, display: 'flex', gap: '15px', alignItems: 'center' }}>
-                  <img src={productoEditando.image_url} alt="Actual" style={{ width: '60px', height: '60px', borderRadius: '6px', objectFit: 'contain', backgroundColor: '#fff' }} />
-                  <div style={{ flex: 1 }}>
+                <div style={{ backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '8px', border: `1px dashed ${colors.borderInputs}`, display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: '15px', alignItems: esMovil ? 'flex-start' : 'center' }}>
+                  <img src={productoEditando.image_url} alt="Actual" style={{ width: '60px', height: '60px', borderRadius: '6px', objectFit: 'contain', backgroundColor: '#fff', alignSelf: esMovil ? 'center' : 'auto' }} />
+                  <div style={{ flex: 1, width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', color: colors.textoGris }}>Cambiar Foto (Opcional)</label>
-                    <input type="file" accept="image/*" onChange={e => setProductoEditando({...productoEditando, nueva_imagen: e.target.files[0]})} style={{ fontSize: '12px', color: colors.textoGris }}/>
+                    <input type="file" accept="image/*" onChange={e => setProductoEditando({...productoEditando, nueva_imagen: e.target.files[0]})} style={{ fontSize: '12px', color: colors.textoGris, width: '100%' }}/>
                   </div>
                 </div>
               </form>
@@ -528,7 +567,7 @@ export default function AdminPanel() {
             {/* Footer del Modal */}
             <div style={{ padding: '20px 25px', borderTop: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button onClick={() => setProductoEditando(null)} style={{ padding: '10px 20px', backgroundColor: 'transparent', color: colors.textoBlanco, border: `1px solid ${colors.borderInputs}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cancelar</button>
-              <button form="editForm" type="submit" style={{ padding: '10px 20px', backgroundColor: colors.colorAcento, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Guardar Cambios</button>
+              <button form="editForm" type="submit" style={{ padding: '10px 20px', backgroundColor: colors.colorAcento, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Guardar</button>
             </div>
 
           </div>
