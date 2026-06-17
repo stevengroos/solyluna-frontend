@@ -34,8 +34,12 @@ export default function Home() {
 
   // --- ESTADOS DEL CARRITO FLOTANTE ---
   const [carrito, setCarrito] = useState(() => {
-    const carritoGuardado = localStorage.getItem('solyluna_carrito');
-    return carritoGuardado ? JSON.parse(carritoGuardado) : [];
+    try {
+      const carritoGuardado = localStorage.getItem('solyluna_carrito');
+      return carritoGuardado ? JSON.parse(carritoGuardado) : [];
+    } catch (e) {
+      return [];
+    }
   });
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
   const numeroWhatsApp = "595986201213";
@@ -49,8 +53,10 @@ export default function Home() {
   // Sincronizar carrito con localStorage
   useEffect(() => {
     const actualizarCarrito = () => {
-      const carritoGuardado = localStorage.getItem('solyluna_carrito');
-      if (carritoGuardado) setCarrito(JSON.parse(carritoGuardado));
+      try {
+        const carritoGuardado = localStorage.getItem('solyluna_carrito');
+        if (carritoGuardado) setCarrito(JSON.parse(carritoGuardado));
+      } catch (e) {}
     };
     window.addEventListener('storage', actualizarCarrito);
     return () => window.removeEventListener('storage', actualizarCarrito);
@@ -83,10 +89,12 @@ export default function Home() {
     setPaginaActual(1);
   }, [filtroTexto, precioMin, precioMax, soloConStock, categoriaSeleccionada, ordenPrecio]);
 
-  // --- FUNCIONES DEL CARRITO ---
-  const modificarCantidad = (idProd, cambio) => {
+  // --- FUNCIONES DEL CARRITO ACTUALIZADAS ---
+  const modificarCantidad = (idUnico, cambio) => {
     setCarrito(prev => prev.map(item => {
-      if (item.id === idProd) {
+      // Soporte retroactivo por si hay items viejos guardados sin idUnicoInterno
+      const currentId = item.idUnicoInterno || item.id;
+      if (currentId === idUnico) {
         const nuevaCant = item.cantidad + cambio;
         return { ...item, cantidad: nuevaCant > 0 ? nuevaCant : 1 };
       }
@@ -94,22 +102,23 @@ export default function Home() {
     }));
   };
 
-  const eliminarDelCarrito = (idProd) => {
-    setCarrito(prev => prev.filter(item => item.id !== idProd));
+  const eliminarDelCarrito = (idUnico) => {
+    setCarrito(prev => prev.filter(item => (item.idUnicoInterno || item.id) !== idUnico));
   };
 
   const enviarCarritoCompletoPorWhatsApp = () => {
     if (carrito.length === 0) return;
-    let mensaje = "Hola SOL & LUNA, quiero realizar el siguiente pedido:\n\n";
-    let total = 0;
+    let mensaje = "Hola SOL & LUNA, quiero realizar el siguiente pedido de mi carrito:\n\n";
     
     carrito.forEach(item => {
-      const subtotal = item.price * item.cantidad;
-      total += subtotal;
-      mensaje += `▪️ ${item.cantidad}x *${item.title}* (Gs. ${item.price.toLocaleString('es-PY')} c/u)\n`;
+      if (item.modalidadElegida === 'financiado') {
+        mensaje += `▪️ ${item.cantidad}x *${item.title}* -> Plan Financiado de *${item.cuotasElegidas} cuotas* de *Gs. ${item.valorCuotaCalculado?.toLocaleString('es-PY')}* c/u por mes.\n`;
+      } else {
+        mensaje += `▪️ ${item.cantidad}x *${item.title}* -> Al Contado (Gs. ${Number(item.price).toLocaleString('es-PY')} c/u).\n`;
+      }
     });
     
-    mensaje += `\n*Total a pagar: Gs. ${total.toLocaleString('es-PY')}*\n\n¿Tienen disponibilidad de todos estos artículos?`;
+    mensaje += `\n¿Tienen disponibilidad de estos artículos para iniciar la solicitud?`;
     window.open(`https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensaje)}`, '_blank');
   };
 
@@ -140,8 +149,6 @@ export default function Home() {
     setPrecioMin(''); setPrecioMax(''); setSoloConStock(false);
     setCategoriaSeleccionada(''); setOrdenPrecio(''); 
   };
-
-  const totalCarrito = carrito.reduce((acc, item) => acc + (item.price * item.cantidad), 0);
 
   if (cargando) return <div style={{ padding: '50px', textAlign: 'center', color: colors.textoBlanco, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>Cargando catálogo...</div>;
   if (error) return <div style={{ padding: '50px', textAlign: 'center', color: colors.colorRojo, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>{error}</div>;
@@ -266,6 +273,7 @@ export default function Home() {
               <h2 style={{ margin: 0, fontSize: '18px', color: colors.textoBlanco, display: 'flex', alignItems: 'center', gap: '10px' }}>🛒 Tu Carrito ({carrito.length})</h2>
               <button onClick={() => setMostrarCarrito(false)} style={{ background: 'none', border: 'none', color: colors.textoGris, fontSize: '28px', cursor: 'pointer', lineHeight: '1' }}>&times;</button>
             </div>
+            
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
               {carrito.length === 0 ? (
                 <div style={{ textAlign: 'center', color: colors.textoGris, marginTop: '50px' }}>
@@ -274,32 +282,41 @@ export default function Home() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {carrito.map(item => (
-                    <div key={item.id} style={{ display: 'flex', gap: '15px', backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '12px', border: `1px solid ${colors.borderInputs}` }}>
+                  {carrito.map(item => {
+                    const currentId = item.idUnicoInterno || item.id;
+                    return (
+                    <div key={currentId} style={{ display: 'flex', gap: '15px', backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '12px', border: `1px solid ${colors.borderInputs}` }}>
                       <img src={item.image_url} alt={item.title} style={{ width: '60px', height: '60px', objectFit: 'contain', backgroundColor: '#fff', borderRadius: '8px' }} />
                       <div style={{ flex: 1 }}>
                         <h4 style={{ margin: '0 0 5px 0', fontSize: '14px', color: colors.textoBlanco, lineHeight: '1.3' }}>{item.title}</h4>
-                        <span style={{ color: colors.colorPrecio, fontWeight: 'bold', fontSize: '14px' }}>Gs. {item.price.toLocaleString('es-PY')}</span>
+                        
+                        {item.modalidadElegida === 'financiado' ? (
+                          <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px' }}>
+                            {item.cuotasElegidas} cuotas de Gs. {item.valorCuotaCalculado?.toLocaleString('es-PY')}
+                          </span>
+                        ) : (
+                          <span style={{ color: colors.colorPrecio, fontWeight: 'bold', fontSize: '14px' }}>
+                            Gs. {Number(item.price).toLocaleString('es-PY')} (Contado)
+                          </span>
+                        )}
+
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: colors.bgPrincipal, borderRadius: '6px', padding: '4px 8px', border: `1px solid ${colors.borderInputs}` }}>
-                            <button onClick={() => modificarCantidad(item.id, -1)} style={{ background: 'none', border: 'none', color: colors.textoBlanco, cursor: 'pointer', fontSize: '16px' }}>-</button>
+                            <button onClick={() => modificarCantidad(currentId, -1)} style={{ background: 'none', border: 'none', color: colors.textoBlanco, cursor: 'pointer', fontSize: '16px' }}>-</button>
                             <span style={{ fontSize: '13px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>{item.cantidad}</span>
-                            <button onClick={() => modificarCantidad(item.id, 1)} style={{ background: 'none', border: 'none', color: colors.textoBlanco, cursor: 'pointer', fontSize: '16px' }}>+</button>
+                            <button onClick={() => modificarCantidad(currentId, 1)} style={{ background: 'none', border: 'none', color: colors.textoBlanco, cursor: 'pointer', fontSize: '16px' }}>+</button>
                           </div>
-                          <button onClick={() => eliminarDelCarrito(item.id)} style={{ background: 'none', border: 'none', color: colors.colorRojo, cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}>Eliminar</button>
+                          <button onClick={() => eliminarDelCarrito(currentId)} style={{ background: 'none', border: 'none', color: colors.colorRojo, cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}>Eliminar</button>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>
+            
             {carrito.length > 0 && (
               <div style={{ padding: '25px 20px', borderTop: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '18px', fontWeight: '800' }}>
-                  <span>Total Contado:</span>
-                  <span style={{ color: colors.colorPrecio }}>Gs. {totalCarrito.toLocaleString('es-PY')}</span>
-                </div>
                 <button onClick={enviarCarritoCompletoPorWhatsApp} style={{ width: '100%', padding: '16px', backgroundColor: '#25D366', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.01 2.004c-5.46 0-9.89 4.435-9.89 9.89 0 1.936.556 3.754 1.517 5.322L2 22l4.945-1.55c1.51.87 3.25 1.353 5.065 1.353 5.46 0 9.89-4.436 9.89-9.89 0-5.456-4.43-9.89-9.89-9.89zm5.292 13.922c-.223.63-.1.144-.927.958-.81.796-1.196.79-2.122.422-.533-.212-2.03-.795-3.863-2.433-1.422-1.272-2.382-2.843-2.66-3.324-.28-.48-.03-.74.21-.978.215-.213.48-.56.72-.84.238-.28.318-.48.477-.8.16-.32.08-.6-.04-.84-.12-.24-.96-2.312-1.316-3.17-.346-.833-.7-.72-.962-.733-.243-.013-.52-.013-.794-.013-.275 0-.72.103-1.097.514-.377.412-1.44 1.407-1.44 3.43 0 2.024 1.474 3.98 1.677 4.254.204.274 2.9 4.43 7.027 6.21 1.008.435 1.764.694 2.366.885 1.012.32 1.933.275 2.66.166.812-.12 2.484-1.014 2.833-1.993.35-.98.35-1.82.246-1.994-.104-.174-.388-.28-.81-.492z"/></svg>
                   Enviar Pedido Completo
