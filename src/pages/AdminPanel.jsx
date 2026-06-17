@@ -23,7 +23,7 @@ export default function AdminPanel() {
 
   // Estado Formulario Nuevo Producto
   const [formProducto, setFormProducto] = useState({
-    title: '', description: '', price: '', stock: '', image: null, category_id: ''
+  title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true // <-- NUEVO
   });
 
   // Modal de Edición
@@ -143,6 +143,7 @@ export default function AdminPanel() {
     formData.append('price', formProducto.price);
     formData.append('stock', formProducto.stock);
     formData.append('image', formProducto.image);
+    formData.append('has_physical_stock', formProducto.has_physical_stock);
     if (formProducto.category_id) formData.append('category_id', formProducto.category_id);
 
     try {
@@ -170,6 +171,7 @@ export default function AdminPanel() {
     formData.append('title', productoEditando.title);
     formData.append('description', productoEditando.description || '');
     formData.append('price', productoEditando.price);
+    formData.append('has_physical_stock', productoEditando.has_physical_stock ?? true);
     if (productoEditando.category_id) formData.append('category_id', productoEditando.category_id);
     
     if (productoEditando.nueva_imagen) {
@@ -488,6 +490,18 @@ export default function AdminPanel() {
                       <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Unidades Disponibles *</label>
                       <input type="number" required value={formProducto.stock} onChange={e => setFormProducto({...formProducto, stock: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} />
                     </div>
+                    <div style={{ marginTop: '15px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: colors.textoGris, cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={formProducto.has_physical_stock} 
+                          // Ojo: en el modal de edición usá productoEditando.has_physical_stock
+                          onChange={e => setFormProducto({...formProducto, has_physical_stock: e.target.checked})} 
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                        <span>¿Este producto está en exhibición en el local físico?</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -548,6 +562,20 @@ export default function AdminPanel() {
                     </select>
                   </div>
                 </div>
+
+                {/* --- NUEVO CHECKBOX DE EXHIBICIÓN FÍSICA --- */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: colors.textoGris, cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={productoEditando.has_physical_stock ?? true} 
+                      onChange={e => setProductoEditando({...productoEditando, has_physical_stock: e.target.checked})} 
+                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: colors.colorAcento }}
+                    />
+                    <span>¿Este producto está en exhibición en el local físico?</span>
+                  </label>
+                </div>
+                {/* ------------------------------------------- */}
 
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Descripción</label>

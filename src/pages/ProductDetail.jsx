@@ -186,6 +186,12 @@ export default function ProductDetail() {
                 {producto.stock > 0 ? `Stock Disponible: ${producto.stock} uds` : 'Agotado'}
               </div>
 
+              {producto.stock > 0 && producto.has_physical_stock === false && (
+                <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid #f59e0b', color: '#d97706', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', marginBottom: '20px', lineHeight: '1.4' }}>
+                  ⚠️ <strong>Aviso:</strong> Este artículo cuenta con stock para entrega o envío inmediato, pero <strong>no se encuentra en exhibición</strong> en nuestro local físico.
+                </div>
+              )}
+
               <div style={{ borderBottom: `1px solid ${colors.borderInputs}`, paddingBottom: '20px', marginBottom: '20px' }}>
                 <span style={{ fontSize: '14px', color: colors.textoGris, display: 'block', marginBottom: '4px' }}>Precio de Contado</span>
                 <span style={{ fontSize: '32px', fontWeight: '800', color: colors.colorPrecio }}>Gs. {precioBase.toLocaleString('es-PY')}</span>
@@ -213,7 +219,7 @@ export default function ProductDetail() {
                       <label style={{ display: 'block', fontSize: '12px', color: colors.textoGris, marginBottom: '6px' }}>Seleccionar cantidad de cuotas:</label>
                       <select value={cuotasElegidas} onChange={(e) => setCuotasElegidas(parseInt(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: colors.bgPrincipal, border: `1px solid ${colors.borderInputs}`, color: colors.textoBlanco, fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
                         {Object.keys(tasasExcel).map(mes => (
-                          <option key={mes} value={mes}>{mes} meses</option>
+                          <option key={mes} value={mes}>{mes} Cuotas</option>
                         ))}
                       </select>
                     </div>
