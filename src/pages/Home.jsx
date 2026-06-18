@@ -6,29 +6,51 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
-  const [categorias, setCategorias] = useState([]); 
-  const [cargando, setCargando] = useState(true);
+  
+  // --- MEJORA DE CACHÉ: Inicializar estado desde la memoria si existe ---
+  const [products, setProducts] = useState(() => {
+    const cached = sessionStorage.getItem('solyluna_productos');
+    return cached ? JSON.parse(cached) : [];
+  });
+  
+  const [categorias, setCategorias] = useState(() => {
+    const cached = sessionStorage.getItem('solyluna_categorias');
+    return cached ? JSON.parse(cached) : [];
+  }); 
+  
+  // Si ya tenemos productos en caché, NO mostramos la pantalla de carga inicial
+  const [cargando, setCargando] = useState(() => {
+    return !sessionStorage.getItem('solyluna_productos');
+  });
+  
   const [error, setError] = useState('');
 
   // Buscador superior
   const [filtroTexto, setFiltroTexto] = useState('');
   
+  // --- DEBOUNCE (ANTI-LAG) PARA EL BUSCADOR ---
+  const [filtroDebounced, setFiltroDebounced] = useState('');
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFiltroDebounced(filtroTexto);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filtroTexto]);
+
   // Filtros laterales
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
   const [soloConStock, setSoloConStock] = useState(false);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
-  
-  // Estado para ordenar por precio
   const [ordenPrecio, setOrdenPrecio] = useState(''); 
 
-  // Paginación (12 productos por página)
+  // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
   const productosPorPagina = 12; 
 
   const { darkMode, colors } = useContext(ThemeContext);
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
 
@@ -50,7 +72,6 @@ export default function Home() {
     return () => window.removeEventListener('resize', manejarResize);
   }, []);
 
-  // Sincronizar carrito con localStorage
   useEffect(() => {
     const actualizarCarrito = () => {
       try {
@@ -66,6 +87,7 @@ export default function Home() {
     localStorage.setItem('solyluna_carrito', JSON.stringify(carrito));
   }, [carrito]);
 
+  // --- OBTENCIÓN DE DATOS CON CACHÉ (STALE-WHILE-REVALIDATE) ---
   useEffect(() => {
     const fetchDatos = async () => {
       try {
@@ -73,26 +95,32 @@ export default function Home() {
           axios.get(`${API_URL}/api/products`),
           axios.get(`${API_URL}/api/categories`)
         ]);
+        
         setProducts(resProd.data);
         setCategorias(resCat.data);
+        
+        // Guardamos los datos frescos en la memoria del navegador
+        sessionStorage.setItem('solyluna_productos', JSON.stringify(resProd.data));
+        sessionStorage.setItem('solyluna_categorias', JSON.stringify(resCat.data));
+        
       } catch (err) {
         console.error(err);
-        setError('Error al cargar los datos del catálogo.');
+        if (products.length === 0) setError('Error al cargar los datos del catálogo.');
       } finally {
         setCargando(false);
       }
     };
     fetchDatos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL]);
 
   useEffect(() => {
     setPaginaActual(1);
-  }, [filtroTexto, precioMin, precioMax, soloConStock, categoriaSeleccionada, ordenPrecio]);
+  }, [filtroDebounced, precioMin, precioMax, soloConStock, categoriaSeleccionada, ordenPrecio]);
 
-  // --- FUNCIONES DEL CARRITO ACTUALIZADAS ---
+  // --- FUNCIONES DEL CARRITO ---
   const modificarCantidad = (idUnico, cambio) => {
     setCarrito(prev => prev.map(item => {
-      // Soporte retroactivo por si hay items viejos guardados sin idUnicoInterno
       const currentId = item.idUnicoInterno || item.id;
       if (currentId === idUnico) {
         const nuevaCant = item.cantidad + cambio;
@@ -111,10 +139,11 @@ export default function Home() {
     let mensaje = "Hola SOL & LUNA, quiero realizar el siguiente pedido de mi carrito:\n\n";
     
     carrito.forEach(item => {
+      const nombreConVariante = item.color_name ? `${item.title} (${item.color_name})` : item.title;
       if (item.modalidadElegida === 'financiado') {
-        mensaje += `▪️ ${item.cantidad}x *${item.title}* -> Plan Financiado de *${item.cuotasElegidas} cuotas* de *Gs. ${item.valorCuotaCalculado?.toLocaleString('es-PY')}* c/u por mes.\n`;
+        mensaje += `▪️ ${item.cantidad}x *${nombreConVariante}* -> Plan Financiado de *${item.cuotasElegidas} cuotas* de *Gs. ${item.valorCuotaCalculado?.toLocaleString('es-PY')}* c/u por mes.\n`;
       } else {
-        mensaje += `▪️ ${item.cantidad}x *${item.title}* -> Al Contado (Gs. ${Number(item.price).toLocaleString('es-PY')} c/u).\n`;
+        mensaje += `▪️ ${item.cantidad}x *${nombreConVariante}* -> Al Contado (Gs. ${Number(item.price).toLocaleString('es-PY')} c/u).\n`;
       }
     });
     
@@ -124,7 +153,7 @@ export default function Home() {
 
   // LÓGICA DE FILTRADO Y PAGINACIÓN
   const productosFiltrados = products.filter((p) => {
-    const texto = filtroTexto.toLowerCase();
+    const texto = filtroDebounced.toLowerCase();
     const coincideTexto = p.title.toLowerCase().includes(texto);
     const coincideMin = precioMin === '' || p.price >= parseFloat(precioMin);
     const coincideMax = precioMax === '' || p.price <= parseFloat(precioMax);
@@ -150,15 +179,36 @@ export default function Home() {
     setCategoriaSeleccionada(''); setOrdenPrecio(''); 
   };
 
-  if (cargando) return <div style={{ padding: '50px', textAlign: 'center', color: colors.textoBlanco, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>Cargando catálogo...</div>;
   if (error) return <div style={{ padding: '50px', textAlign: 'center', color: colors.colorRojo, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>{error}</div>;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif', transition: 'background-color 0.3s, color 0.3s' }}>
       
+      <style>{`
+        .spinner-elegante {
+          width: 50px;
+          height: 50px;
+          border: 4px solid rgba(255, 255, 255, 0.1);
+          border-left-color: ${colors.colorAcento};
+          border-radius: 50%;
+          animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* Solo mostramos el cargando si NO hay nada en caché */}
+      {cargando && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="spinner-elegante"></div>
+          <p style={{ marginTop: '20px', color: '#fff', fontSize: '15px', fontWeight: '500', letterSpacing: '1px' }}>Cargando catálogo...</p>
+        </div>
+      )}
+
       <Header filtroTexto={filtroTexto} setFiltroTexto={setFiltroTexto} />
 
-      {/* BOTÓN FLOTANTE DEL CARRITO */}
       {carrito.length > 0 && (
         <button 
           onClick={() => setMostrarCarrito(true)}
@@ -173,7 +223,6 @@ export default function Home() {
 
       <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: '25px', padding: esMovil ? '15px' : '30px 40px' }}>
         
-        {/* Barra Lateral / Superior de Filtros */}
         <aside style={{ flex: esMovil ? '1 1 auto' : '0 0 280px', backgroundColor: colors.bgCards, padding: '25px', borderRadius: '12px', boxShadow: colors.shadow, height: 'fit-content', position: esMovil ? 'static' : 'sticky', top: '100px', border: colors.borderCard, transition: 'background-color 0.3s', boxSizing: 'border-box' }}>
           <h2 style={{ fontSize: '18px', marginTop: 0, borderBottom: darkMode ? '1px solid #334155' : '1px solid #eee', paddingBottom: '10px', color: colors.textoBlanco }}>Filtrar por</h2>
           
@@ -214,7 +263,6 @@ export default function Home() {
           <button onClick={limpiarFiltrosLaterales} style={{ width: '100%', padding: '12px', backgroundColor: colors.colorRojo, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>Limpiar Filtros</button>
         </aside>
 
-        {/* Bloque de Productos */}
         <main style={{ flex: 1, width: '100%' }}>
           <div style={{ marginBottom: '20px', fontSize: '15px', color: colors.textoGris, backgroundColor: colors.bgCards, padding: '10px 15px', borderRadius: '8px', border: colors.borderCard, display: 'inline-block', width: esMovil ? '100%' : 'auto', boxSizing: 'border-box', textAlign: 'center' }}>
             <b>{totalProductos} producto(s) encontrado(s)</b>
@@ -265,7 +313,6 @@ export default function Home() {
         </main>
       </div>
 
-      {/* ================= MODAL DEL CARRITO DESLIZANTE ================= */}
       {mostrarCarrito && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'flex-end', zIndex: 2000 }}>
           <div style={{ width: esMovil ? '100%' : '450px', backgroundColor: colors.bgCards, height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '-10px 0 25px rgba(0,0,0,0.5)', animation: 'slideIn 0.3s forwards' }}>
@@ -288,7 +335,9 @@ export default function Home() {
                     <div key={currentId} style={{ display: 'flex', gap: '15px', backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '12px', border: `1px solid ${colors.borderInputs}` }}>
                       <img src={item.image_url} alt={item.title} style={{ width: '60px', height: '60px', objectFit: 'contain', backgroundColor: '#fff', borderRadius: '8px' }} />
                       <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: '0 0 5px 0', fontSize: '14px', color: colors.textoBlanco, lineHeight: '1.3' }}>{item.title}</h4>
+                        <h4 style={{ margin: '0 0 5px 0', fontSize: '14px', color: colors.textoBlanco, lineHeight: '1.3' }}>
+                          {item.title} {item.color_name && <span style={{color: colors.textoGris, fontWeight: 'normal'}}> - {item.color_name}</span>}
+                        </h4>
                         
                         {item.modalidadElegida === 'financiado' ? (
                           <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px' }}>

@@ -7,10 +7,24 @@ export default function AdminPanel() {
   const { colors, darkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
 
+  // --- CACHÉ: Inicializar estado desde la memoria ---
+  const [productos, setProductos] = useState(() => {
+    const cached = sessionStorage.getItem('solyluna_productos');
+    return cached ? JSON.parse(cached) : [];
+  });
+  
+  const [categorias, setCategorias] = useState(() => {
+    const cached = sessionStorage.getItem('solyluna_categorias');
+    return cached ? JSON.parse(cached) : [];
+  });
+
   const [tabActiva, setTabActiva] = useState('productos');
-  const [productos, setProductos] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  
+  // No mostramos pantalla de carga si ya hay caché
+  const [cargando, setCargando] = useState(() => {
+    return !sessionStorage.getItem('solyluna_productos');
+  });
+  
   const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
 
   // Estados Categorías
@@ -23,7 +37,7 @@ export default function AdminPanel() {
 
   // Estado Formulario Nuevo Producto
   const [formProducto, setFormProducto] = useState({
-  title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true // <-- NUEVO
+    title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true
   });
 
   // Modal de Edición
@@ -33,10 +47,9 @@ export default function AdminPanel() {
   const [filtroTablaProductos, setFiltroTablaProductos] = useState('');
   const [paginaActualProd, setPaginaActualProd] = useState(1);
   const [stockBorrador, setStockBorrador] = useState({}); 
+  const [nuevaVariante, setNuevaVariante] = useState({ color_name: '', stock: 0, image: null });
 
   const productosPorPagina = 20;
-
-  // --- NUEVO: Detector de pantalla móvil para el panel administrativo ---
   const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -45,27 +58,53 @@ export default function AdminPanel() {
     return () => window.removeEventListener('resize', manejarResize);
   }, []);
 
+  const cerrarSesion = () => {
+    localStorage.removeItem('adminToken');
+    navigate('/login');
+  };
+
+  // --- SEGURIDAD: VERIFICACIÓN DEL TOKEN ---
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
       navigate('/login');
       return;
     }
+
+    // Leemos la fecha de expiración del JWT internamente
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const decodedPayload = JSON.parse(atob(payloadBase64));
+      // Si la fecha actual supera a la expiración (en milisegundos)
+      if (decodedPayload.exp * 1000 < Date.now()) {
+        cerrarSesion();
+        return;
+      }
+    } catch (e) {
+      // Si el token tiene formato inválido
+    }
+
     cargarDatos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const cargarDatos = async () => {
-    setCargando(true);
     try {
       const [resProd, resCat] = await Promise.all([
         axios.get(`${API_URL}/api/products`),
         axios.get(`${API_URL}/api/categories`)
       ]);
+      
       setProductos(resProd.data);
       setCategorias(resCat.data);
+      
+      // Actualizamos el caché
+      sessionStorage.setItem('solyluna_productos', JSON.stringify(resProd.data));
+      sessionStorage.setItem('solyluna_categorias', JSON.stringify(resCat.data));
+      
     } catch (err) {
       console.error(err);
-      mostrarMensaje('Error al conectar con el servidor.', 'error');
+      if (productos.length === 0) mostrarMensaje('Error al conectar con el servidor.', 'error');
     } finally {
       setCargando(false);
     }
@@ -73,12 +112,25 @@ export default function AdminPanel() {
 
   const mostrarMensaje = (texto, tipo) => {
     setMensaje({ texto, tipo });
-    setTimeout(() => setMensaje({ texto: '', tipo: '' }), 4000);
+    setTimeout(() => setMensaje({ texto: '', tipo: '' }), 5000);
   };
 
-  const cerrarSesion = () => {
-    localStorage.removeItem('adminToken');
-    navigate('/');
+  // --- MANEJADOR GLOBAL DE ERRORES API (Anti-Tokens Vencidos) ---
+  const manejarErrorApi = (err, mensajeDefecto) => {
+    if (err.response?.status === 401) {
+      mostrarMensaje('Sesión expirada. Redirigiendo...', 'error');
+      setTimeout(() => cerrarSesion(), 2000);
+    } else {
+      mostrarMensaje(err.response?.data?.detail || mensajeDefecto, 'error');
+    }
+  };
+
+  // --- DETECTOR DE PESO DE IMÁGENES ---
+  const verificarPesoImagen = (file) => {
+    if (file && file.size > 500 * 1024) {
+      mostrarMensaje('⚠️ La imagen pesa más de 500KB. Te sugerimos comprimirla (ej. en TinyPNG) para que la tienda cargue más rápido.', 'error');
+    }
+    return file;
   };
 
   // --- LOGICA STOCK ---
@@ -92,6 +144,7 @@ export default function AdminPanel() {
     if (nuevoStock === undefined) return;
     const token = localStorage.getItem('adminToken');
     try {
+      setCargando(true);
       await axios.put(`${API_URL}/api/products/${id}/stock`, 
         { stock: nuevoStock },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -101,8 +154,11 @@ export default function AdminPanel() {
       delete nuevoBorrador[id];
       setStockBorrador(nuevoBorrador);
       mostrarMensaje('Inventario actualizado.', 'success');
+      cargarDatos(); // Refrescar caché
     } catch (err) {
-      mostrarMensaje('Error al actualizar stock.', 'error');
+      manejarErrorApi(err, 'Error al actualizar stock.');
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -118,6 +174,7 @@ export default function AdminPanel() {
     if (!nuevaCategoria.trim()) return;
     const token = localStorage.getItem('adminToken');
     try {
+      setCargando(true);
       const response = await axios.post(`${API_URL}/api/categories`, 
         { name: nuevaCategoria },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -125,8 +182,11 @@ export default function AdminPanel() {
       setCategorias([...categorias, response.data]);
       setNuevaCategoria('');
       mostrarMensaje('Categoría creada 🎉', 'success');
+      cargarDatos();
     } catch (err) {
-      mostrarMensaje('Error al crear categoría.', 'error');
+      manejarErrorApi(err, 'Error al crear categoría.');
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -152,11 +212,11 @@ export default function AdminPanel() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
       mostrarMensaje('¡Producto publicado exitosamente!', 'success');
-      setFormProducto({ title: '', description: '', price: '', stock: '', image: null, category_id: '' });
+      setFormProducto({ title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true });
       cargarDatos(); 
       setTabActiva('productos'); 
     } catch (err) {
-      mostrarMensaje(err.response?.data?.detail || 'Error al registrar producto.', 'error');
+      manejarErrorApi(err, 'Error al registrar producto.');
     } finally {
       setCargando(false);
     }
@@ -187,7 +247,60 @@ export default function AdminPanel() {
       setProductoEditando(null); 
       cargarDatos(); 
     } catch (err) {
-      mostrarMensaje(err.response?.data?.detail || 'Error al editar producto.', 'error');
+      manejarErrorApi(err, 'Error al editar producto.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // --- LÓGICA DE VARIANTES (COLORES) ---
+  const guardarVariante = async (e) => {
+    e.preventDefault();
+    if (!nuevaVariante.color_name) return;
+    
+    const token = localStorage.getItem('adminToken');
+    const formData = new FormData();
+    formData.append('color_name', nuevaVariante.color_name);
+    formData.append('stock', nuevaVariante.stock);
+    if (nuevaVariante.image) {
+      formData.append('image', nuevaVariante.image);
+    }
+
+    try {
+      setCargando(true);
+      const res = await axios.post(`${API_URL}/api/products/${productoEditando.id}/variants`, formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      
+      const productoActualizado = { ...productoEditando, variants: [...(productoEditando.variants || []), res.data] };
+      setProductoEditando(productoActualizado);
+      
+      setNuevaVariante({ color_name: '', stock: 0, image: null });
+      mostrarMensaje('Color agregado con éxito', 'success');
+      cargarDatos();
+    } catch (err) {
+      manejarErrorApi(err, 'Error al guardar el color.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const eliminarVariante = async (idVariante) => {
+    const token = localStorage.getItem('adminToken');
+    try {
+      setCargando(true);
+      await axios.delete(`${API_URL}/api/products/variants/${idVariante}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const productoActualizado = { 
+        ...productoEditando, 
+        variants: productoEditando.variants.filter(v => v.id !== idVariante) 
+      };
+      setProductoEditando(productoActualizado);
+      mostrarMensaje('Color eliminado', 'success');
+      cargarDatos();
+    } catch (err) {
+      manejarErrorApi(err, 'Error al eliminar color.');
     } finally {
       setCargando(false);
     }
@@ -198,22 +311,30 @@ export default function AdminPanel() {
     if (productosSeleccionados.length === 0) return;
     const token = localStorage.getItem('adminToken');
     try {
+      setCargando(true);
       await Promise.all(productosSeleccionados.map(prodId => axios.put(`${API_URL}/api/products/${prodId}/category`, { category_id: categoriaId }, { headers: { Authorization: `Bearer ${token}` } })));
       setProductos(productos.map(p => productosSeleccionados.includes(p.id) ? { ...p, category_id: categoriaId } : p));
       setProductosSeleccionados([]); setBusquedaProductoCat('');
       mostrarMensaje(`Asignado con éxito`, 'success');
+      cargarDatos();
     } catch (err) {
-      mostrarMensaje('Error al asignar.', 'error');
+      manejarErrorApi(err, 'Error al asignar productos.');
+    } finally {
+      setCargando(false);
     }
   };
 
   const quitarProductoDeCategoria = async (productoId) => {
     const token = localStorage.getItem('adminToken');
     try {
+      setCargando(true);
       await axios.put(`${API_URL}/api/products/${productoId}/category`, { category_id: null }, { headers: { Authorization: `Bearer ${token}` } });
       setProductos(productos.map(p => p.id === parseInt(productoId) ? { ...p, category_id: null } : p));
+      cargarDatos();
     } catch (err) {
-      mostrarMensaje('Error al desvincular.', 'error');
+      manejarErrorApi(err, 'Error al desvincular producto.');
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -225,11 +346,33 @@ export default function AdminPanel() {
 
   useEffect(() => { setPaginaActualProd(1); }, [filtroTablaProductos]);
 
-  if (cargando) return <div style={{ padding: '50px', textAlign: 'center', color: colors.textoBlanco, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>Procesando...</div>;
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif' }}>
       
+      {/* --- ESTILOS DEL LOADER PREMIUM --- */}
+      <style>{`
+        .spinner-elegante {
+          width: 50px;
+          height: 50px;
+          border: 4px solid rgba(255, 255, 255, 0.1);
+          border-left-color: ${colors.colorAcento};
+          border-radius: 50%;
+          animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* --- CAPA DE CARGA GLOBAL --- */}
+      {cargando && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div className="spinner-elegante"></div>
+          <p style={{ marginTop: '20px', color: '#fff', fontSize: '15px', fontWeight: '500', letterSpacing: '1px' }}>Sincronizando con el servidor...</p>
+        </div>
+      )}
+
       {/* Header Responsivo */}
       <div style={{ 
         backgroundColor: colors.bgCards, 
@@ -260,16 +403,10 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* Menú de pestañas deslizable horizontalmente en teléfonos */}
+        {/* Menú de pestañas */}
         <div style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          marginBottom: '30px', 
-          borderBottom: `1px solid ${colors.borderInputs}`, 
-          paddingBottom: '15px',
-          overflowX: esMovil ? 'auto' : 'visible',
-          whiteSpace: 'nowrap',
-          WebkitOverflowScrolling: 'touch'
+          display: 'flex', gap: '10px', marginBottom: '30px', borderBottom: `1px solid ${colors.borderInputs}`, paddingBottom: '15px',
+          overflowX: esMovil ? 'auto' : 'visible', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch'
         }}>
           <button onClick={() => setTabActiva('productos')} style={{ flexShrink: 0, background: tabActiva === 'productos' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'productos' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'productos' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Inventario ({productos.length})</button>
           <button onClick={() => setTabActiva('categorias')} style={{ flexShrink: 0, background: tabActiva === 'categorias' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'categorias' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'categorias' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Categorías ({categorias.length})</button>
@@ -279,14 +416,7 @@ export default function AdminPanel() {
         {/* PESTAÑA PRODUCTOS */}
         {tabActiva === 'productos' && (
           <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', border: colors.borderCard, padding: esMovil ? '20px' : '30px', boxShadow: colors.shadow }}>
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: esMovil ? 'column' : 'row',
-              gap: esMovil ? '15px' : '0px',
-              justifyContent: 'space-between', 
-              alignItems: esMovil ? 'flex-start' : 'center', 
-              marginBottom: '20px' 
-            }}>
+            <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: esMovil ? '15px' : '0px', justifyContent: 'space-between', alignItems: esMovil ? 'flex-start' : 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, fontSize: '18px' }}>Gestión General</h3>
               <div style={{ position: 'relative', width: esMovil ? '100%' : '350px' }}>
                 <span style={{ position: 'absolute', left: '12px', top: '10px', fontSize: '14px' }}>🔍</span>
@@ -359,16 +489,10 @@ export default function AdminPanel() {
 
         {/* PESTAÑA CATEGORÍAS RESPONSIVA */}
         {tabActiva === 'categorias' && (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: esMovil ? '1fr' : 'minmax(300px, 400px) 1fr', 
-            gap: '25px', 
-            alignItems: 'start' 
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : 'minmax(300px, 400px) 1fr', gap: '25px', alignItems: 'start' }}>
             <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: '30px', border: colors.borderCard, boxShadow: colors.shadow, position: esMovil ? 'static' : 'sticky', top: '100px' }}>
               <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Nueva Categoría</h3>
               <p style={{ fontSize: '13px', color: colors.textoGris, marginBottom: '20px' }}>Organiza tu catálogo creando secciones específicas.</p>
-              
               <form onSubmit={guardarCategoria}>
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Nombre de la categoría</label>
@@ -381,7 +505,6 @@ export default function AdminPanel() {
             <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', padding: esMovil ? '20px' : '30px', border: colors.borderCard, boxShadow: colors.shadow }}>
               <h3 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>Estructura del Catálogo</h3>
               <p style={{ fontSize: '13px', color: colors.textoGris, marginBottom: '25px' }}>Haz clic en una categoría para administrar los productos que contiene.</p>
-              
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 {categorias.map(c => {
                   const productosDeEstaCat = productos.filter(p => p.category_id === c.id);
@@ -394,7 +517,6 @@ export default function AdminPanel() {
                         <span style={{ fontWeight: '600', color: estaExpandida ? colors.colorAcento : colors.textoBlanco, fontSize: '15px' }}>{c.name}</span>
                         <span style={{ fontSize: '12px', color: colors.textoGris, backgroundColor: colors.bgInputs, padding: '4px 10px', borderRadius: '20px', fontWeight: '500' }}>{productosDeEstaCat.length} artículos</span>
                       </div>
-
                       {estaExpandida && (
                         <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', borderTop: `1px solid ${colors.borderInputs}` }}>
                           <div style={{ marginBottom: '25px' }}>
@@ -495,7 +617,6 @@ export default function AdminPanel() {
                         <input 
                           type="checkbox" 
                           checked={formProducto.has_physical_stock} 
-                          // Ojo: en el modal de edición usá productoEditando.has_physical_stock
                           onChange={e => setFormProducto({...formProducto, has_physical_stock: e.target.checked})} 
                           style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                         />
@@ -517,7 +638,16 @@ export default function AdminPanel() {
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Fotografía Principal *</label>
-                      <input type="file" accept="image/*" required onChange={e => setFormProducto({...formProducto, image: e.target.files[0]})} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px dashed ${colors.colorAcento}`, backgroundColor: 'rgba(56, 189, 248, 0.05)', color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer' }}/>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        required 
+                        onChange={e => {
+                          const file = verificarPesoImagen(e.target.files[0]);
+                          setFormProducto({...formProducto, image: file});
+                        }} 
+                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px dashed ${colors.colorAcento}`, backgroundColor: 'rgba(56, 189, 248, 0.05)', color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer' }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -535,13 +665,11 @@ export default function AdminPanel() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: esMovil ? '10px' : '20px' }}>
           <div style={{ backgroundColor: colors.bgCards, width: '100%', maxWidth: '600px', borderRadius: '16px', border: colors.borderCard, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '95vh' }}>
             
-            {/* Header del Modal */}
             <div style={{ padding: '20px 25px', borderBottom: `1px solid ${colors.borderInputs}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.bgInputs }}>
               <h2 style={{ margin: 0, fontSize: '18px', color: colors.textoBlanco, maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Editar: {productoEditando.title}</h2>
               <button onClick={() => setProductoEditando(null)} style={{ background: 'none', border: 'none', color: colors.textoGris, fontSize: '24px', cursor: 'pointer', lineHeight: '1' }}>&times;</button>
             </div>
 
-            {/* Cuerpo del Modal */}
             <div style={{ padding: esMovil ? '15px' : '25px', overflowY: 'auto', flex: 1 }}>
               <form id="editForm" onSubmit={guardarEdicionProducto}>
                 <div style={{ marginBottom: '20px' }}>
@@ -563,7 +691,6 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                {/* --- NUEVO CHECKBOX DE EXHIBICIÓN FÍSICA --- */}
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: colors.textoGris, cursor: 'pointer' }}>
                     <input 
@@ -575,7 +702,6 @@ export default function AdminPanel() {
                     <span>¿Este producto está en exhibición en el local físico?</span>
                   </label>
                 </div>
-                {/* ------------------------------------------- */}
 
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Descripción</label>
@@ -586,10 +712,69 @@ export default function AdminPanel() {
                   <img src={productoEditando.image_url} alt="Actual" style={{ width: '60px', height: '60px', borderRadius: '6px', objectFit: 'contain', backgroundColor: '#fff', alignSelf: esMovil ? 'center' : 'auto' }} />
                   <div style={{ flex: 1, width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '13px', marginBottom: '5px', color: colors.textoGris }}>Cambiar Foto (Opcional)</label>
-                    <input type="file" accept="image/*" onChange={e => setProductoEditando({...productoEditando, nueva_imagen: e.target.files[0]})} style={{ fontSize: '12px', color: colors.textoGris, width: '100%' }}/>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => {
+                        const file = verificarPesoImagen(e.target.files[0]);
+                        setProductoEditando({...productoEditando, nueva_imagen: file});
+                      }} 
+                      style={{ fontSize: '12px', color: colors.textoGris, width: '100%' }}
+                    />
                   </div>
                 </div>
               </form>
+              
+              {/* ================= GESTIÓN DE COLORES / VARIANTES ================= */}
+              <div style={{ marginTop: '30px', borderTop: `1px solid ${colors.borderInputs}`, paddingTop: '20px' }}>
+                <h3 style={{ fontSize: '15px', color: colors.colorAcento, marginBottom: '15px' }}>Opciones de Colores / Variantes</h3>
+                
+                {productoEditando.variants && productoEditando.variants.length > 0 ? (
+                  <div style={{ display: 'grid', gap: '10px', marginBottom: '20px' }}>
+                    {productoEditando.variants.map(v => (
+                      <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.bgPrincipal, padding: '10px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          {v.image_url ? (
+                            <img src={v.image_url} alt={v.color_name} style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'contain', backgroundColor: '#fff' }} />
+                          ) : (
+                            <div style={{ width: '40px', height: '40px', borderRadius: '4px', backgroundColor: colors.bgInputs, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: colors.textoGris }}>Sin foto</div>
+                          )}
+                          <div>
+                            <span style={{ display: 'block', fontWeight: 'bold', fontSize: '14px', color: colors.textoBlanco }}>{v.color_name}</span>
+                            <span style={{ fontSize: '12px', color: v.stock > 0 ? '#10b981' : '#f87171' }}>Stock: {v.stock}</span>
+                          </div>
+                        </div>
+                        <button onClick={() => eliminarVariante(v.id)} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Eliminar</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '13px', color: colors.textoGris, marginBottom: '20px', fontStyle: 'italic' }}>Este producto es simple (no tiene colores adicionales configurados).</p>
+                )}
+
+                <form onSubmit={guardarVariante} style={{ backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '8px', border: `1px dashed ${colors.borderInputs}` }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: colors.textoBlanco }}>+ Agregar un nuevo color</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: esMovil ? '1fr' : '2fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                    <input type="text" placeholder="Nombre del color (Ej: Negro/Rojo)" required value={nuevaVariante.color_name} onChange={e => setNuevaVariante({...nuevaVariante, color_name: e.target.value})} style={{ padding: '10px', borderRadius: '6px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, outline: 'none', fontSize: '13px' }} />
+                    <input type="number" placeholder="Stock" required min="0" value={nuevaVariante.stock} onChange={e => setNuevaVariante({...nuevaVariante, stock: parseInt(e.target.value)})} style={{ padding: '10px', borderRadius: '6px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, outline: 'none', fontSize: '13px' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: '10px', alignItems: esMovil ? 'stretch' : 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '11px', color: colors.textoGris, display: 'block', marginBottom: '4px' }}>Foto exclusiva para este color (Opcional):</label>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={e => {
+                          const file = verificarPesoImagen(e.target.files[0]);
+                          setNuevaVariante({...nuevaVariante, image: file});
+                        }} 
+                        style={{ fontSize: '12px', color: colors.textoGris, width: '100%' }} 
+                      />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: colors.colorAcento, color: '#fff', border: 'none', padding: '10px 15px', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Añadir Color</button>
+                  </div>
+                </form>
+              </div>
             </div>
 
             {/* Footer del Modal */}
