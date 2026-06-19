@@ -331,7 +331,7 @@ export default function ProductDetail() {
                   </>
                 ) : (
                   <div style={{ textAlign: 'center', backgroundColor: colors.bgPrincipal, padding: '25px 15px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}` }}>
-                    <span style={{ fontSize: '13px', color: colors.textoGris, display: 'block', marginBottom: '5px' }}>Precio Final en Efectivo</span>
+                    <span style={{ fontSize: '13px', color: colors.textoGris, display: 'block', marginBottom: '5px' }}>Precio Final</span>
                     <span style={{ fontSize: '28px', fontWeight: '800', color: colors.colorPrecio }}>Gs. {precioBase.toLocaleString('es-PY')}</span>
                     <span style={{ fontSize: '12px', color: '#10b981', display: 'block', marginTop: '6px', fontWeight: '500' }}>✓ Sin cargos adicionales</span>
                   </div>
