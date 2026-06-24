@@ -15,7 +15,7 @@ export default function AdminDashboard() {
     setCargando(true);
     setMensaje('');
 
-    // Para enviar archivos, obligatoriamente usamos FormData
+    // Para enviar archivos, obligatoriamente usamos FormDatass
     const formData = new FormData();
     formData.append('title', title);
     formData.append('description', description);
