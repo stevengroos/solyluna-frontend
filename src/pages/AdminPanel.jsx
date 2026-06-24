@@ -139,6 +139,77 @@ export default function AdminPanel() {
     setStockBorrador(prev => ({ ...prev, [id]: parseInt(nuevoValor) }));
   };
 
+
+  // --- NUEVA FUNCIÓN: Eliminar Producto ---
+  const manejarEliminarProducto = async (id, titulo) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el producto "${titulo}"?`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_URL}/api/products/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMensaje({ texto: 'Producto eliminado correctamente', tipo: 'exito' });
+      // Actualizar vista y actualizar caché
+      const copia = productos.filter(p => p.id !== id);
+      setProductos(copia);
+      sessionStorage.setItem('solyluna_productos', JSON.stringify(copia));
+    } catch (err) {
+      console.error(err);
+      setMensaje({ texto: 'Error al intentar eliminar el producto', tipo: 'error' });
+    }
+  };
+
+  // --- NUEVA FUNCIÓN: Editar Categoría ---
+  const manejarEditarCategoria = async (id, nombreActual) => {
+    const nuevoNombre = window.prompt("Modificar nombre de la categoría:", nombreActual);
+    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.put(`${API_URL}/api/categories/${id}`, { name: nuevoNombre.trim() }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMensaje({ texto: 'Categoría actualizada correctamente', tipo: 'exito' });
+      
+      // Actualizar interfaz y caché
+      const copia = categorias.map(c => c.id === id ? { ...c, name: nuevoNombre.trim() } : c);
+      setCategorias(copia);
+      sessionStorage.setItem('solyluna_categorias', JSON.stringify(copia));
+    } catch (err) {
+      console.error(err);
+      setMensaje({ texto: err.response?.data?.detail || 'Error al renombrar categoría', tipo: 'error' });
+    }
+  };
+
+  // --- NUEVA FUNCIÓN: Eliminar Categoría ---
+  const manejarEliminarCategoria = async (id, nombre) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la categoría "${nombre}"?\nLos productos de esta categoría NO se borrarán, pero se quedarán sin categoría asignada.`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_URL}/api/categories/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMensaje({ texto: 'Categoría eliminada correctamente', tipo: 'exito' });
+      
+      // Actualizar interfaz (Categorías)
+      const copiaCat = categorias.filter(c => c.id !== id);
+      setCategorias(copiaCat);
+      sessionStorage.setItem('solyluna_categorias', JSON.stringify(copiaCat));
+
+      // Actualizar interfaz (Productos afectados pasan a tener category_id = null)
+      const copiaProd = productos.map(p => p.category_id === id ? { ...p, category_id: null } : p);
+      setProductos(copiaProd);
+      sessionStorage.setItem('solyluna_productos', JSON.stringify(copiaProd));
+    } catch (err) {
+      console.error(err);
+      setMensaje({ texto: 'Error al eliminar la categoría', tipo: 'error' });
+    }
+  };
+
   const confirmarStockBD = async (id) => {
     const nuevoStock = stockBorrador[id];
     if (nuevoStock === undefined) return;
@@ -466,6 +537,13 @@ export default function AdminPanel() {
                           <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                           Editar
                           </button>
+
+                          <button 
+                            onClick={() => manejarEliminarProducto(p.id, p.title)} 
+                            style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                          >
+                            Eliminar
+                          </button>
                         </td>
                       </tr>
                     );
@@ -515,8 +593,29 @@ export default function AdminPanel() {
                     <div key={c.id} style={{ border: `1px solid ${estaExpandida ? colors.colorAcento : colors.borderInputs}`, borderRadius: '10px', overflow: 'hidden' }}>
                       <div onClick={() => {setCategoriaExpandida(estaExpandida ? null : c.id); setProductosSeleccionados([]); setBusquedaProductoCat('');}} style={{ padding: '18px 20px', backgroundColor: estaExpandida ? (darkMode ? 'rgba(56, 189, 248, 0.05)' : '#f0f9ff') : 'transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                         <span style={{ fontWeight: '600', color: estaExpandida ? colors.colorAcento : colors.textoBlanco, fontSize: '15px' }}>{c.name}</span>
-                        <span style={{ fontSize: '12px', color: colors.textoGris, backgroundColor: colors.bgInputs, padding: '4px 10px', borderRadius: '20px', fontWeight: '500' }}>{productosDeEstaCat.length} artículos</span>
+                        
+                        {/* --- CONTENEDOR DE ACCIONES CORREGIDO (Usa 'c' en vez de 'cat') --- */}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); manejarEditarCategoria(c.id, c.name); }}
+                            style={{ padding: '4px 8px', backgroundColor: 'transparent', color: colors.textoGris, border: 'none', cursor: 'pointer', fontSize: '12px' }}
+                            title="Renombrar Categoría"
+                          >
+                            ✏️
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); manejarEliminarCategoria(c.id, c.name); }}
+                            style={{ padding: '4px 8px', backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '12px' }}
+                            title="Eliminar Categoría"
+                          >
+                            🗑️
+                          </button>
+
+                          <span style={{ fontSize: '12px', color: colors.textoGris, backgroundColor: colors.bgInputs, padding: '4px 10px', borderRadius: '20px', fontWeight: '500' }}>{productosDeEstaCat.length} artículos</span>
+                        </div>
                       </div>
+                      
                       {estaExpandida && (
                         <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', borderTop: `1px solid ${colors.borderInputs}` }}>
                           <div style={{ marginBottom: '25px' }}>
