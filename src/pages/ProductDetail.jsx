@@ -38,6 +38,7 @@ export default function ProductDetail() {
 
   const [error, setError] = useState('');
   const [varianteSeleccionada, setVarianteSeleccionada] = useState(null);
+  const [imagenGaleriaSeleccionada, setImagenGaleriaSeleccionada] = useState(null);
 
   // --- OPCIONES DEL CUOTERO ---
   const [modalidad, setModalidad] = useState('financiado'); 
@@ -104,7 +105,12 @@ export default function ProductDetail() {
 
   // --- FUNCIONES DEL CUOTERO ---
   const precioBase = producto ? Number(producto.price) || 0 : 0;
-  const imagenMostrar = varianteSeleccionada?.image_url || producto?.image_url;
+  let imagenMostrar = producto?.image_url;
+  if (varianteSeleccionada && varianteSeleccionada.image_url) {
+    imagenMostrar = varianteSeleccionada.image_url;
+  } else if (imagenGaleriaSeleccionada) {
+    imagenMostrar = imagenGaleriaSeleccionada;
+  }
   const stockMostrar = varianteSeleccionada ? varianteSeleccionada.stock : (producto?.stock || 0);
   const nombreProductoFinal = varianteSeleccionada ? `${producto?.title} - ${varianteSeleccionada.color_name}` : producto?.title;
   
@@ -232,8 +238,37 @@ export default function ProductDetail() {
 
         <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '40px', backgroundColor: colors.bgCards, borderRadius: '20px', padding: window.innerWidth < 768 ? '20px' : '40px', border: colors.borderCard, boxShadow: colors.shadow }}>
           
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', minHeight: '300px', maxHeight: '450px' }}>
-            <img src={imagenMostrar} alt={producto.title || 'Producto'} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {/* Foto Grande Principal */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', minHeight: '300px', maxHeight: '450px' }}>
+              <img src={imagenMostrar} alt={producto.title || 'Producto'} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            </div>
+
+            {/* Carrusel de Miniaturas (Galería) */}
+            {producto.gallery && producto.gallery.length > 0 && (
+              <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
+                
+                {/* 1. Miniatura de la Portada Original */}
+                <div 
+                  onClick={() => { setImagenGaleriaSeleccionada(null); setVarianteSeleccionada(null); }}
+                  style={{ width: '70px', height: '70px', borderRadius: '10px', backgroundColor: '#fff', border: (!varianteSeleccionada && !imagenGaleriaSeleccionada) ? `2px solid ${colors.colorAcento}` : '1px solid #e2e8f0', cursor: 'pointer', flexShrink: 0, overflow: 'hidden', padding: '5px' }}
+                >
+                  <img src={producto.image_url} alt="Portada" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
+                
+                {/* 2. Miniaturas de las Fotos Adicionales */}
+                {producto.gallery.map(img => (
+                  <div 
+                    key={img.id}
+                    onClick={() => { setImagenGaleriaSeleccionada(img.image_url); setVarianteSeleccionada(null); }}
+                    style={{ width: '70px', height: '70px', borderRadius: '10px', backgroundColor: '#fff', border: imagenGaleriaSeleccionada === img.image_url ? `2px solid ${colors.colorAcento}` : '1px solid #e2e8f0', cursor: 'pointer', flexShrink: 0, overflow: 'hidden', padding: '5px' }}
+                  >
+                    <img src={img.image_url} alt="Galeria" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                ))}
+
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -248,7 +283,7 @@ export default function ProductDetail() {
                     
                     {/* Botón para el producto Original */}
                     <button 
-                      onClick={() => setVarianteSeleccionada(null)}
+                      onClick={() => { setVarianteSeleccionada(null); setImagenGaleriaSeleccionada(null); }}
                       style={{ 
                         padding: '8px 16px', borderRadius: '8px', 
                         border: varianteSeleccionada === null ? `2px solid ${colors.colorAcento}` : `1px solid ${colors.borderInputs}`, 
@@ -264,7 +299,7 @@ export default function ProductDetail() {
                     {producto.variants.map(v => (
                       <button 
                         key={v.id} 
-                        onClick={() => setVarianteSeleccionada(v)}
+                        onClick={() => { setVarianteSeleccionada(v); setImagenGaleriaSeleccionada(null); }}
                         style={{ 
                           padding: '8px 16px', borderRadius: '8px', 
                           border: varianteSeleccionada?.id === v.id ? `2px solid ${colors.colorAcento}` : `1px solid ${colors.borderInputs}`, 
@@ -338,9 +373,9 @@ export default function ProductDetail() {
                 )}
               </div>
 
-              <p style={{ fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 30px 0' }}>
-                {producto.description || "Este artículo no cuenta con una descripción detallada por el momento. Comunícate con nuestros asesores para recibir más detalles."}
-              </p>
+            <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 30px 0' }}>
+              {producto.description || "Este artículo no cuenta con una descripción detallada por el momento. Comunícate con nuestros asesores para recibir más detalles."}
+            </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -35,9 +35,9 @@ export default function AdminPanel() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  // Estado Formulario Nuevo Producto
+// Estado Formulario Nuevo Producto
   const [formProducto, setFormProducto] = useState({
-    title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true
+    title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: [] // <-- NUEVO CAMPO PARA GALERÍA
   });
 
   // Modal de Edición
@@ -264,7 +264,7 @@ export default function AdminPanel() {
   const guardarProducto = async (e) => {
     e.preventDefault();
     if (!formProducto.image) {
-      mostrarMensaje('Por favor, selecciona una foto para el producto.', 'error');
+      mostrarMensaje('Por favor, selecciona una foto principal para el producto.', 'error');
       return;
     }
     const token = localStorage.getItem('adminToken');
@@ -279,15 +279,30 @@ export default function AdminPanel() {
 
     try {
       setCargando(true);
-      await axios.post(`${API_URL}/api/products`, formData, {
+      // 1. Crear el producto principal primero
+      const res = await axios.post(`${API_URL}/api/products`, formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
-      mostrarMensaje('¡Producto publicado exitosamente!', 'success');
-      setFormProducto({ title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true });
+      
+      const nuevoProductoId = res.data.id;
+
+      // 2. Si hay fotos en la galería, subirlas una por una al nuevo producto
+      if (formProducto.gallery_images && formProducto.gallery_images.length > 0) {
+        for (let img of formProducto.gallery_images) {
+          const galleryFormData = new FormData();
+          galleryFormData.append('image', img);
+          await axios.post(`${API_URL}/api/products/${nuevoProductoId}/gallery`, galleryFormData, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+          });
+        }
+      }
+
+      mostrarMensaje('¡Producto y fotos publicados exitosamente!', 'success');
+      setFormProducto({ title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: [] });
       cargarDatos(); 
       setTabActiva('productos'); 
     } catch (err) {
-      manejarErrorApi(err, 'Error al registrar producto.');
+      manejarErrorApi(err, 'Error al registrar producto o sus fotos.');
     } finally {
       setCargando(false);
     }
@@ -319,6 +334,55 @@ export default function AdminPanel() {
       cargarDatos(); 
     } catch (err) {
       manejarErrorApi(err, 'Error al editar producto.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // --- LÓGICA DE GALERÍA (EDICIÓN) ---
+  const subirFotoGaleria = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    verificarPesoImagen(file);
+
+    const token = localStorage.getItem('adminToken');
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      setCargando(true);
+      const res = await axios.post(`${API_URL}/api/products/${productoEditando.id}/gallery`, formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+      });
+      
+      const productoActualizado = { ...productoEditando, gallery: [...(productoEditando.gallery || []), res.data] };
+      setProductoEditando(productoActualizado);
+      mostrarMensaje('Foto agregada a la galería', 'success');
+      cargarDatos();
+    } catch (err) {
+      manejarErrorApi(err, 'Error al subir foto a la galería.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const eliminarFotoGaleria = async (idImagen) => {
+    if(!window.confirm("¿Eliminar esta foto de la galería?")) return;
+    const token = localStorage.getItem('adminToken');
+    try {
+      setCargando(true);
+      await axios.delete(`${API_URL}/api/products/gallery/${idImagen}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const productoActualizado = { 
+        ...productoEditando, 
+        gallery: productoEditando.gallery.filter(g => g.id !== idImagen) 
+      };
+      setProductoEditando(productoActualizado);
+      mostrarMensaje('Foto eliminada', 'success');
+      cargarDatos();
+    } catch (err) {
+      manejarErrorApi(err, 'Error al eliminar foto.');
     } finally {
       setCargando(false);
     }
@@ -736,7 +800,7 @@ export default function AdminPanel() {
                       </select>
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Fotografía Principal *</label>
+                      <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Fotografía Principal (Portada) *</label>
                       <input 
                         type="file" 
                         accept="image/*" 
@@ -745,8 +809,25 @@ export default function AdminPanel() {
                           const file = verificarPesoImagen(e.target.files[0]);
                           setFormProducto({...formProducto, image: file});
                         }} 
-                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px dashed ${colors.colorAcento}`, backgroundColor: 'rgba(56, 189, 248, 0.05)', color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer' }}
+                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px dashed ${colors.colorAcento}`, backgroundColor: 'rgba(56, 189, 248, 0.05)', color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer', marginBottom: '15px' }}
                       />
+                      
+                      <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Fotos Adicionales (Galería) - Opcional</label>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        multiple // <-- ESTO PERMITE SELECCIONAR VARIAS
+                        onChange={e => {
+                          // Convertir el FileList a un Array real
+                          const archivos = Array.from(e.target.files);
+                          archivos.forEach(verificarPesoImagen); // Verificamos peso de todas
+                          setFormProducto({...formProducto, gallery_images: archivos});
+                        }} 
+                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer' }}
+                      />
+                      {formProducto.gallery_images.length > 0 && (
+                        <p style={{ fontSize: '11px', color: '#10b981', marginTop: '5px' }}>✓ {formProducto.gallery_images.length} foto(s) extra seleccionada(s)</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -823,7 +904,31 @@ export default function AdminPanel() {
                   </div>
                 </div>
               </form>
-              
+              {/* ================= GESTIÓN DE GALERÍA (FOTOS EXTRA) ================= */}
+              <div style={{ marginTop: '30px', borderTop: `1px solid ${colors.borderInputs}`, paddingTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ fontSize: '15px', color: colors.colorAcento, margin: 0 }}>Galería de Fotos Adicionales</h3>
+                  
+                  {/* Botón camuflado para subir nueva foto rápida */}
+                  <label style={{ backgroundColor: colors.bgInputs, border: `1px solid ${colors.borderInputs}`, color: colors.textoBlanco, padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    + Subir Foto
+                    <input type="file" accept="image/*" onChange={subirFotoGaleria} style={{ display: 'none' }} />
+                  </label>
+                </div>
+
+                {productoEditando.gallery && productoEditando.gallery.length > 0 ? (
+                  <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
+                    {productoEditando.gallery.map(img => (
+                      <div key={img.id} style={{ position: 'relative', flexShrink: 0 }}>
+                        <img src={img.image_url} alt="Galeria" style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'contain', backgroundColor: '#fff', border: `1px solid ${colors.borderInputs}` }} />
+                        <button onClick={() => eliminarFotoGaleria(img.id)} style={{ position: 'absolute', top: '-5px', right: '-5px', backgroundColor: colors.colorRojo, color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '13px', color: colors.textoGris, margin: 0, fontStyle: 'italic' }}>No hay fotos adicionales en la galería.</p>
+                )}
+              </div>
               {/* ================= GESTIÓN DE COLORES / VARIANTES ================= */}
               <div style={{ marginTop: '30px', borderTop: `1px solid ${colors.borderInputs}`, paddingTop: '20px' }}>
                 <h3 style={{ fontSize: '15px', color: colors.colorAcento, marginBottom: '15px' }}>Opciones de Colores / Variantes</h3>
