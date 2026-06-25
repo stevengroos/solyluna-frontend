@@ -46,6 +46,7 @@ export default function AdminPanel() {
   // Estados Tabla Productos
   const [filtroTablaProductos, setFiltroTablaProductos] = useState('');
   const [paginaActualProd, setPaginaActualProd] = useState(1);
+  const [paginaActualAgotados, setPaginaActualAgotados] = useState(1);
   const [stockBorrador, setStockBorrador] = useState({}); 
   const [nuevaVariante, setNuevaVariante] = useState({ color_name: '', stock: 0, image: null });
 
@@ -473,6 +474,38 @@ export default function AdminPanel() {
     }
   };
 
+  // --- EXPORTAR A EXCEL (CSV) ---
+  const exportarAExcel = () => {
+    const separador = ";"; // Punto y coma funciona mejor para el Excel en español
+    let csvContent = "\uFEFF"; // Esto asegura que Excel lea bien los acentos y las 'ñ'
+    csvContent += `ID${separador}Producto${separador}Precio (Gs)${separador}Stock${separador}Categoría${separador}En Exhibición\n`;
+
+    productos.forEach(p => {
+      const cat = categorias.find(c => c.id === p.category_id)?.name || "Sin asignar";
+      const titulo = `"${p.title.replace(/"/g, '""')}"`; // Evita que las comas del título rompan las columnas
+      const fila = `${p.id}${separador}${titulo}${separador}${p.price}${separador}${p.stock}${separador}"${cat}"${separador}${p.has_physical_stock ? 'Sí' : 'No'}`;
+      csvContent += fila + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Inventario_SolyLuna_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    mostrarMensaje('¡Inventario exportado a Excel!', 'success');
+  };
+
+  // Variable para los productos agotados
+  // Variable y Paginación para los productos agotados
+  const productosAgotados = productos.filter(p => p.stock <= 0);
+  const totalPaginasAgotados = Math.ceil(productosAgotados.length / productosPorPagina);
+  const idxUltimoAgotado = paginaActualAgotados * productosPorPagina;
+  const idxPrimerAgotado = idxUltimoAgotado - productosPorPagina;
+  const productosAgotadosVisibles = productosAgotados.slice(idxPrimerAgotado, idxUltimoAgotado);
+
   const productosTablaFiltrados = productos.filter(p => p.title.toLowerCase().includes(filtroTablaProductos.toLowerCase()));
   const totalPaginasProd = Math.ceil(productosTablaFiltrados.length / productosPorPagina);
   const idxUltimoProd = paginaActualProd * productosPorPagina;
@@ -540,12 +573,19 @@ export default function AdminPanel() {
 
         {/* Menú de pestañas */}
         <div style={{ 
-          display: 'flex', gap: '10px', marginBottom: '30px', borderBottom: `1px solid ${colors.borderInputs}`, paddingBottom: '15px',
-          overflowX: esMovil ? 'auto' : 'visible', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch'
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: `1px solid ${colors.borderInputs}`, paddingBottom: '15px',
+          flexDirection: esMovil ? 'column' : 'row', gap: '15px'
         }}>
-          <button onClick={() => setTabActiva('productos')} style={{ flexShrink: 0, background: tabActiva === 'productos' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'productos' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'productos' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Inventario ({productos.length})</button>
-          <button onClick={() => setTabActiva('categorias')} style={{ flexShrink: 0, background: tabActiva === 'categorias' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'categorias' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'categorias' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Categorías ({categorias.length})</button>
-          <button onClick={() => setTabActiva('nuevo-producto')} style={{ flexShrink: 0, background: tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'nuevo-producto' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Publicar Producto</button>
+          <div style={{ display: 'flex', gap: '10px', overflowX: esMovil ? 'auto' : 'visible', whiteSpace: 'nowrap', width: esMovil ? '100%' : 'auto', paddingBottom: esMovil ? '5px' : '0' }}>
+            <button onClick={() => setTabActiva('productos')} style={{ flexShrink: 0, background: tabActiva === 'productos' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'productos' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'productos' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Inventario ({productos.length})</button>
+            <button onClick={() => setTabActiva('agotados')} style={{ flexShrink: 0, background: tabActiva === 'agotados' ? colors.colorRojo : colors.bgCards, color: tabActiva === 'agotados' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'agotados' ? colors.colorRojo : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Agotados ({productosAgotados.length})</button>
+            <button onClick={() => setTabActiva('categorias')} style={{ flexShrink: 0, background: tabActiva === 'categorias' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'categorias' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'categorias' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Categorías ({categorias.length})</button>
+            <button onClick={() => setTabActiva('nuevo-producto')} style={{ flexShrink: 0, background: tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.bgCards, color: tabActiva === 'nuevo-producto' ? '#fff' : colors.textoGris, border: `1px solid ${tabActiva === 'nuevo-producto' ? colors.colorAcento : colors.borderInputs}`, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}>Publicar Producto</button>
+          </div>
+          
+          <button onClick={exportarAExcel} style={{ flexShrink: 0, background: '#10b981', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', width: esMovil ? '100%' : 'auto', justifyContent: 'center' }}>
+            <span>📊</span> Exportar Excel
+          </button>
         </div>
 
         {/* PESTAÑA PRODUCTOS */}
@@ -623,6 +663,78 @@ export default function AdminPanel() {
                 <div style={{ display: 'flex', gap: '5px' }}>
                   <button onClick={() => setPaginaActualProd(p => Math.max(p - 1, 1))} disabled={paginaActualProd === 1} style={{ padding: '8px 12px', border: `1px solid ${colors.borderInputs}`, borderRadius: '6px', backgroundColor: colors.bgInputs, cursor: 'pointer', color: colors.textoGris }}>Anterior</button>
                   <button onClick={() => setPaginaActualProd(p => Math.min(p + 1, totalPaginasProd))} disabled={paginaActualProd === totalPaginasProd} style={{ padding: '8px 12px', border: `1px solid ${colors.borderInputs}`, borderRadius: '6px', backgroundColor: colors.bgInputs, cursor: 'pointer', color: colors.textoGris }}>Siguiente</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PESTAÑA AGOTADOS */}
+        {tabActiva === 'agotados' && (
+          <div style={{ backgroundColor: colors.bgCards, borderRadius: '16px', border: `1px solid ${colors.colorRojo}`, padding: esMovil ? '20px' : '30px', boxShadow: colors.shadow }}>
+            <div style={{ marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', color: colors.colorRojo }}>Atención de Inventario</h3>
+              <p style={{ fontSize: '13px', color: colors.textoGris, marginTop: '5px' }}>Estos productos tienen 0 stock y los clientes no pueden comprarlos.</p>
+            </div>
+
+            {productosAgotados.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: colors.bgInputs, borderRadius: '12px', color: '#10b981', fontWeight: 'bold' }}>
+                ¡Excelente! No tienes ningún producto agotado en este momento.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${colors.borderInputs}` }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px', minWidth: '650px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: colors.textoBlanco }}>
+                      <th style={{ padding: '15px' }}>Imagen</th><th style={{ padding: '15px' }}>Producto</th><th style={{ padding: '15px' }}>Precio Base</th><th style={{ padding: '15px', width: '150px' }}>Ajustar Stock</th><th style={{ padding: '15px', textAlign: 'center' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosAgotadosVisibles.map((p) => {
+                      const stockActualVisible = stockBorrador[p.id] !== undefined ? stockBorrador[p.id] : p.stock;
+                      const hayCambiosPendientes = stockBorrador[p.id] !== undefined && stockBorrador[p.id] !== p.stock;
+
+                      return (
+                        <tr key={p.id} style={{ borderTop: `1px solid ${colors.borderInputs}` }}>
+                          <td style={{ padding: '15px' }}><img src={p.image_url} alt="" style={{ width: '45px', height: '45px', objectFit: 'contain', backgroundColor: '#fff', borderRadius: '6px' }} /></td>
+                          <td style={{ padding: '15px', fontWeight: '500' }}>{p.title}</td>
+                          <td style={{ padding: '15px', color: colors.colorPrecio, fontWeight: 'bold' }}>Gs. {p.price.toLocaleString('es-PY')}</td>
+                          
+                          <td style={{ padding: '15px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <button onClick={() => manejarCambioStockBorrador(p.id, stockActualVisible - 1)} style={{ padding: '4px 8px', backgroundColor: colors.bgInputs, border: `1px solid ${colors.borderInputs}`, color: colors.textoBlanco, borderRadius: '4px', cursor: 'pointer' }}>-</button>
+                                <input type="number" value={stockActualVisible} onChange={(e) => manejarCambioStockBorrador(p.id, e.target.value)} style={{ width: '50px', textAlign: 'center', padding: '4px', backgroundColor: hayCambiosPendientes ? (darkMode ? '#334155' : '#fff3cd') : 'rgba(239, 68, 68, 0.2)', border: `1px solid ${colors.colorRojo}`, color: colors.textoBlanco, borderRadius: '4px', outline: 'none' }} />
+                                <button onClick={() => manejarCambioStockBorrador(p.id, stockActualVisible + 1)} style={{ padding: '4px 8px', backgroundColor: colors.bgInputs, border: `1px solid ${colors.borderInputs}`, color: colors.textoBlanco, borderRadius: '4px', cursor: 'pointer' }}>+</button>
+                              </div>
+                              {hayCambiosPendientes && (
+                                <div style={{ display: 'flex', gap: '5px' }}>
+                                  <button onClick={() => confirmarStockBD(p.id)} style={{ flex: 1, padding: '4px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>💾 Guardar</button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          
+                          <td style={{ padding: '15px', textAlign: 'center' }}>
+                            <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
+                              Editar Todo
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              
+            )}
+            {/* Paginación Agotados */}
+            {totalPaginasAgotados > 1 && (
+              <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: esMovil ? '12px' : '0px', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', fontSize: '14px', color: colors.textoGris }}>
+                <span>Mostrando {idxPrimerAgotado + 1} - {Math.min(idxUltimoAgotado, productosAgotados.length)} de {productosAgotados.length}</span>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <button onClick={() => setPaginaActualAgotados(p => Math.max(p - 1, 1))} disabled={paginaActualAgotados === 1} style={{ padding: '8px 12px', border: `1px solid ${colors.borderInputs}`, borderRadius: '6px', backgroundColor: colors.bgInputs, cursor: 'pointer', color: colors.textoGris }}>Anterior</button>
+                  <button onClick={() => setPaginaActualAgotados(p => Math.min(p + 1, totalPaginasAgotados))} disabled={paginaActualAgotados === totalPaginasAgotados} style={{ padding: '8px 12px', border: `1px solid ${colors.borderInputs}`, borderRadius: '6px', backgroundColor: colors.bgInputs, cursor: 'pointer', color: colors.textoGris }}>Siguiente</button>
                 </div>
               </div>
             )}
