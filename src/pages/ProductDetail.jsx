@@ -61,7 +61,7 @@ export default function ProductDetail() {
   });
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
 
-  const numeroWhatsApp = "595986201213"; 
+  const numeroWhatsApp = "595983464526"; 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   // --- OBTENCIÓN DE DATOS CON REVALIDACIÓN SILENCIOSA ---
