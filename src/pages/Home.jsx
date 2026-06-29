@@ -181,6 +181,16 @@ export default function Home() {
 
   if (error) return <div style={{ padding: '50px', textAlign: 'center', color: colors.colorRojo, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>{error}</div>;
 
+
+  // --- FUNCIÓN PARA LIMPIAR EL HTML EN LAS TARJETAS ---
+  const obtenerTextoPlano = (htmlString) => {
+    if (!htmlString) return "Sin descripción detallada.";
+    // Creamos un elemento virtual para que el navegador extraiga solo el texto real
+    const elementoTemporal = document.createElement("div");
+    elementoTemporal.innerHTML = htmlString;
+    return elementoTemporal.textContent || elementoTemporal.innerText || "";
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif', transition: 'background-color 0.3s, color 0.3s' }}>
       
@@ -282,7 +292,7 @@ export default function Home() {
                     </div>
                     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                       <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: colors.textoBlanco, lineHeight: '1.4', fontWeight: '600' }}>{p.title}</h3>
-                      <p style={{ fontSize: '13px', color: colors.textoGris, margin: '0 0 15px 0', flexGrow: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.5' }}>{p.description}</p>
+                      <p style={{ fontSize: '13px', color: colors.textoGris, margin: '0 0 15px 0', flexGrow: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.5' }}>{obtenerTextoPlano(p.description)}</p>
                       <div style={{ fontSize: '20px', fontWeight: 'bold', color: colors.colorPrecio, marginBottom: '12px' }}>Gs. {p.price.toLocaleString('es-PY')}</div>
                       <div style={{ fontSize: '12px', color: p.stock > 0 ? (darkMode ? '#34d399' : '#155724') : (darkMode ? '#f87171' : '#721c24'), backgroundColor: p.stock > 0 ? (darkMode ? 'rgba(52, 211, 153, 0.1)' : '#d4edda') : (darkMode ? 'rgba(248, 113, 113, 0.1)' : '#f8d7da'), padding: '6px 12px', borderRadius: '20px', display: 'inline-block', width: 'fit-content', marginBottom: '15px' }}>
                         {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}

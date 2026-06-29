@@ -213,36 +213,23 @@ export default function ProductDetail() {
   if (error || !producto) return <div style={{ padding: '80px 20px', textAlign: 'center', color: colors.colorRojo, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>{error || 'El producto no existe.'}</div>;
 
 
-
-  const parseDescriptionForDisplay = (desc) => {
-    if (!desc) return { det: "Este artículo no cuenta con una descripción detallada por el momento.", car: '', esp: '' };
-    const partes1 = desc.split('[CARACTERISTICAS]');
-    let det = partes1[0].trim();
-    let car = '';
-    let esp = '';
+// --- DETECTOR DE TEXTO ANTIGUO VS NUEVO ---
+  const formatearDescripcion = (desc) => {
+    if (!desc) return "Este artículo no cuenta con una descripción detallada por el momento.";
     
-    if (partes1.length > 1) {
-      const partes2 = partes1[1].split('[ESPECIFICACIONES]');
-      car = partes2[0].trim();
-      if (partes2.length > 1) esp = partes2[1].trim();
-    } else {
-      const partes2 = det.split('[ESPECIFICACIONES]');
-      if (partes2.length > 1) {
-        det = partes2[0].trim();
-        esp = partes2[1].trim();
-      }
+    // Si el texto tiene etiquetas de Quill, significa que es nuevo (HTML)
+    if (desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<h1>') || desc.includes('<br>')) {
+      return desc;
     }
-    return { det, car, esp };
+    
+    // Si es un texto antiguo plano, convertimos los "enters" originales (\n) en etiquetas HTML (<br>)
+    return desc.replace(/\n/g, '<br />');
   };
-
-  const descParsed = parseDescriptionForDisplay(producto?.description);
-
-
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif' }}>
       
-      <Header filtroTexto="" setFiltroTexto={() => {}} />
+      <Header ocultarBuscador={true} />
 
       {/* BOTÓN FLOTANTE DEL CARRITO */}
       {carrito.length > 0 && (
@@ -265,7 +252,7 @@ export default function ProductDetail() {
 
         <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '40px', backgroundColor: colors.bgCards, borderRadius: '20px', padding: window.innerWidth < 768 ? '20px' : '40px', border: colors.borderCard, boxShadow: colors.shadow }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', minWidth: 0 }}>
             {/* Foto Grande Principal */}
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', minHeight: '300px', maxHeight: '450px' }}>
               <img src={imagenMostrar} alt={producto.title || 'Producto'} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
@@ -298,7 +285,7 @@ export default function ProductDetail() {
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
             <div>
               <h1 style={{ margin: '0 0 10px 0', fontSize: window.innerWidth < 768 ? '24px' : '28px', fontWeight: '800', color: colors.textoBlanco }}>{producto.title}</h1>
               {producto.variants && producto.variants.length > 0 && (
@@ -400,33 +387,19 @@ export default function ProductDetail() {
                 )}
               </div>
 
-            {/* --- SECCIÓN DE DETALLES Y ESPECIFICACIONES --- */}
+            {/* --- SECCIÓN DE DESCRIPCIÓN CON FORMATO (NUEVA VERSIÓN QUILL) --- */}
             <div style={{ marginBottom: '30px' }}>
               <div style={{ borderBottom: `2px solid ${colors.colorAcento}`, paddingBottom: '8px', marginBottom: '15px' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', color: colors.textoBlanco, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Detalles</h3>
+                <h3 style={{ margin: 0, fontSize: '16px', color: colors.textoBlanco, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Detalles del Producto</h3>
               </div>
-              <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0' }}>
-                {descParsed.det}
-              </p>
-
-              {descParsed.car && (
-                <>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: colors.textoBlanco }}>Características:</h4>
-                  <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0', paddingLeft: '10px' }}>
-                    {descParsed.car}
-                  </p>
-                </>
-              )}
-
-              {descParsed.esp && (
-                <>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: colors.textoBlanco }}>Especificaciones:</h4>
-                  <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0', paddingLeft: '10px' }}>
-                    {descParsed.esp}
-                  </p>
-                </>
-              )}
+              
+              <div 
+                className="descripcion-html"
+                style={{ fontSize: '15px', lineHeight: '1.6', color: colors.textoGris }}
+                dangerouslySetInnerHTML={{ __html: formatearDescripcion(producto.description) }} 
+              />
             </div>
+
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -519,6 +492,41 @@ export default function ProductDetail() {
         @keyframes slideIn {
           from { transform: translateX(100%); }
           to { transform: translateX(0); }
+        }
+        
+        /* CSS SÚPER BÁSICO Y LIMPIO PARA QUILL */
+        .descripcion-html {
+          color: ${colors.textoGris};
+          overflow-wrap: break-word;
+          word-wrap: break-word;
+        }
+        .descripcion-html p {
+          margin: 0 0 10px 0;
+          line-height: 1.5;
+        }
+        .descripcion-html p:last-child {
+          margin-bottom: 0;
+        }
+        .descripcion-html ul {
+          margin: 0 0 15px 20px;
+          padding: 0;
+          list-style-type: disc;
+        }
+        .descripcion-html ol {
+          margin: 0 0 15px 20px;
+          padding: 0;
+          list-style-type: decimal;
+        }
+        .descripcion-html li {
+          margin-bottom: 5px;
+        }
+        .descripcion-html strong, .descripcion-html b {
+          color: #ffffff;
+          font-weight: bold;
+        }
+        .descripcion-html h1, .descripcion-html h2, .descripcion-html h3 {
+          color: #ffffff;
+          margin: 15px 0 10px 0;
         }
       `}</style>
     </div>

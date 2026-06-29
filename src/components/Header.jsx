@@ -2,11 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext';
 
-export default function Header({ filtroTexto, setFiltroTexto }) {
-  const { colors, darkMode, toggleTheme } = useContext(ThemeContext); // Usamos tus variables del contexto
+export default function Header({ filtroTexto, setFiltroTexto, ocultarBuscador }) {
+  const { colors, darkMode, toggleTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
   
-  // Detector de pantalla móvil para reordenar los elementos
   const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
   const tieneToken = !!localStorage.getItem('adminToken');
 
@@ -28,7 +27,8 @@ export default function Header({ filtroTexto, setFiltroTexto }) {
       transition: 'background-color 0.3s, padding 0.3s',
       display: 'flex',
       flexDirection: 'column',
-      gap: esMovil && setFiltroTexto ? '12px' : '0px'
+      // Solo pone el margen (gap) si es móvil, existe setFiltroTexto y NO estamos ocultando el buscador
+      gap: esMovil && setFiltroTexto && !ocultarBuscador ? '12px' : '0px'
     }}>
       {/* FILA PRINCIPAL: Logo y Acciones */}
       <div style={{
@@ -46,14 +46,14 @@ export default function Header({ filtroTexto, setFiltroTexto }) {
             fontWeight: '800',
             color: colors.colorAcento || '#38bdf8',
             letterSpacing: '1px',
-            whiteSpace: 'nowrap' // Evita que se rompa en dos líneas como en la foto
+            whiteSpace: 'nowrap'
           }}>
             SOL & LUNA
           </h1>
         </Link>
 
-        {/* BUSCADOR (Versión Escritorio) */}
-        {!esMovil && setFiltroTexto && (
+        {/* BUSCADOR (Versión Escritorio) - Se oculta si ocultarBuscador es true */}
+        {!esMovil && setFiltroTexto && !ocultarBuscador && (
           <div style={{ position: 'relative', width: '400px' }}>
             <span style={{ position: 'absolute', left: '15px', top: '11px', color: colors.textoGris }}>🔍</span>
             <input 
@@ -74,7 +74,7 @@ export default function Header({ filtroTexto, setFiltroTexto }) {
         {/* BOTONES DERECHOS: Modo Claro/Oscuro y Acceso */}
         <div style={{ display: 'flex', alignItems: 'center', gap: esMovil ? '10px' : '15px' }}>
           
-          {/* Botón de Tema (Mantiene tu funcionalidad nativa) */}
+          {/* Botón de Tema */}
           <button 
             onClick={toggleTheme} 
             style={{ 
@@ -86,7 +86,7 @@ export default function Header({ filtroTexto, setFiltroTexto }) {
             {darkMode ? '☀️ Claro' : '🌙 Oscuro'}
           </button>
 
-          {/* Botón Dinámico: Si ya inició sesión va al Workspace, si no, a iniciar sesión */}
+          {/* Botón Dinámico */}
           <button 
             onClick={() => navigate(tieneToken ? '/admin' : '/login')}
             style={{ 
@@ -100,8 +100,8 @@ export default function Header({ filtroTexto, setFiltroTexto }) {
         </div>
       </div>
 
-      {/* BUSCADOR (Versión Móvil - Se despliega abajo de forma limpia) */}
-      {esMovil && setFiltroTexto && (
+      {/* BUSCADOR (Versión Móvil) - Se oculta si ocultarBuscador es true */}
+      {esMovil && setFiltroTexto && !ocultarBuscador && (
         <div style={{ position: 'relative', width: '100%' }}>
           <span style={{ position: 'absolute', left: '15px', top: '11px', color: colors.textoGris }}>🔍</span>
           <input 

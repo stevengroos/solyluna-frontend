@@ -2,6 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ThemeContext } from '../context/ThemeContext';
 import axios from 'axios';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 export default function AdminPanel() {
   const { colors, darkMode } = useContext(ThemeContext);
@@ -35,9 +37,9 @@ export default function AdminPanel() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-// Estado Formulario Nuevo Producto
+  // Estado Formulario Nuevo Producto
   const [formProducto, setFormProducto] = useState({
-    title: '', desc_detalles: '', desc_carac: '', desc_espec: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: []
+    title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: []
   });
 
   // Modal de Edición
@@ -139,7 +141,6 @@ export default function AdminPanel() {
     if (nuevoValor < 0) return;
     setStockBorrador(prev => ({ ...prev, [id]: parseInt(nuevoValor) }));
   };
-
 
   // --- NUEVA FUNCIÓN: Eliminar Producto ---
   const manejarEliminarProducto = async (id, titulo) => {
@@ -271,10 +272,7 @@ export default function AdminPanel() {
     const token = localStorage.getItem('adminToken');
     const formData = new FormData();
     formData.append('title', formProducto.title);
-    let descripcionUnida = formProducto.desc_detalles;
-    if(formProducto.desc_carac) descripcionUnida += `\n\n[CARACTERISTICAS]\n${formProducto.desc_carac}`;
-    if(formProducto.desc_espec) descripcionUnida += `\n\n[ESPECIFICACIONES]\n${formProducto.desc_espec}`;
-    formData.append('description', descripcionUnida);
+    formData.append('description', formProducto.description);
     formData.append('price', formProducto.price);
     formData.append('stock', formProducto.stock);
     formData.append('image', formProducto.image);
@@ -302,7 +300,7 @@ export default function AdminPanel() {
       }
 
       mostrarMensaje('¡Producto y fotos publicados exitosamente!', 'success');
-      setFormProducto({ title: '', desc_detalles: '', desc_carac: '', desc_espec: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: [] });
+      setFormProducto({ title: '', description: '', price: '', stock: '', image: null, category_id: '', has_physical_stock: true, gallery_images: [] });
       cargarDatos(); 
       setTabActiva('productos'); 
     } catch (err) {
@@ -319,10 +317,7 @@ export default function AdminPanel() {
     const formData = new FormData();
     
     formData.append('title', productoEditando.title);
-    let descripcionEditada = productoEditando.desc_detalles || '';
-    if(productoEditando.desc_carac) descripcionEditada += `\n\n[CARACTERISTICAS]\n${productoEditando.desc_carac}`;
-    if(productoEditando.desc_espec) descripcionEditada += `\n\n[ESPECIFICACIONES]\n${productoEditando.desc_espec}`;
-    formData.append('description', descripcionEditada);
+    formData.append('description', productoEditando.description || '');
     formData.append('price', productoEditando.price);
     formData.append('has_physical_stock', productoEditando.has_physical_stock ?? true);
     if (productoEditando.category_id) formData.append('category_id', productoEditando.category_id);
@@ -505,7 +500,6 @@ export default function AdminPanel() {
   };
 
   // Variable para los productos agotados
-  // Variable y Paginación para los productos agotados
   const productosAgotados = productos.filter(p => p.stock <= 0);
   const totalPaginasAgotados = Math.ceil(productosAgotados.length / productosPorPagina);
   const idxUltimoAgotado = paginaActualAgotados * productosPorPagina;
@@ -644,32 +638,13 @@ export default function AdminPanel() {
                         <td style={{ padding: '15px' }}><span style={{ backgroundColor: catAsociada ? colors.bgInputs : 'transparent', border: catAsociada ? `1px solid ${colors.borderInputs}` : 'none', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', color: catAsociada ? colors.textoBlanco : colors.textoGris }}>{catAsociada ? catAsociada.name : 'Sin asignar'}</span></td>
                         
                         <td style={{ padding: '15px', textAlign: 'center' }}>
-                          <button onClick={() => {
-                            const desc = p.description || '';
-                            const partes1 = desc.split('[CARACTERISTICAS]');
-                            let det = partes1[0].trim();
-                            let car = '';
-                            let esp = '';
-                            
-                            if (partes1.length > 1) {
-                              const partes2 = partes1[1].split('[ESPECIFICACIONES]');
-                              car = partes2[0].trim();
-                              if (partes2.length > 1) esp = partes2[1].trim();
-                            } else {
-                              const partes2 = det.split('[ESPECIFICACIONES]');
-                              if (partes2.length > 1) {
-                                det = partes2[0].trim();
-                                esp = partes2[1].trim();
-                              }
-                            }
-                            setProductoEditando({...p, desc_detalles: det, desc_carac: car, desc_espec: esp});
-                          }} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                          <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                           Editar
                           </button>
 
                           <button 
                             onClick={() => manejarEliminarProducto(p.id, p.title)} 
-                            style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                            style={{ padding: '6px 12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500', marginLeft: '5px' }}
                           >
                             Eliminar
                           </button>
@@ -741,26 +716,7 @@ export default function AdminPanel() {
                           </td>
                           
                           <td style={{ padding: '15px', textAlign: 'center' }}>
-                            <button onClick={() => {
-                                const desc = p.description || '';
-                                const partes1 = desc.split('[CARACTERISTICAS]');
-                                let det = partes1[0].trim();
-                                let car = '';
-                                let esp = '';
-                                
-                                if (partes1.length > 1) {
-                                  const partes2 = partes1[1].split('[ESPECIFICACIONES]');
-                                  car = partes2[0].trim();
-                                  if (partes2.length > 1) esp = partes2[1].trim();
-                                } else {
-                                  const partes2 = det.split('[ESPECIFICACIONES]');
-                                  if (partes2.length > 1) {
-                                    det = partes2[0].trim();
-                                    esp = partes2[1].trim();
-                                  }
-                                }
-                                setProductoEditando({...p, desc_detalles: det, desc_carac: car, desc_espec: esp});
-                              }} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
+                            <button onClick={() => setProductoEditando(p)} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.colorAcento}`, color: colors.colorAcento, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}>
                               Editar Todo
                             </button>
                           </td>
@@ -915,14 +871,15 @@ export default function AdminPanel() {
                     <input type="text" required value={formProducto.title} onChange={e => setFormProducto({...formProducto, title: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Detalles / Descripción General</label>
-                    <textarea rows="3" value={formProducto.desc_detalles} onChange={e => setFormProducto({...formProducto, desc_detalles: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', resize: 'vertical', fontSize: '14px', fontFamily: 'inherit', marginBottom: '15px' }}></textarea>
-                    
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Características (Opcional - Empezá con guiones)</label>
-                    <textarea rows="3" placeholder="- Diseño asimétrico&#10;- Manejo cómodo" value={formProducto.desc_carac} onChange={e => setFormProducto({...formProducto, desc_carac: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', resize: 'vertical', fontSize: '14px', fontFamily: 'inherit', marginBottom: '15px' }}></textarea>
-                    
-                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Especificaciones (Opcional - Empezá con guiones)</label>
-                    <textarea rows="3" placeholder="- Tamaño: 205/55 R16&#10;- Velocidad: V" value={formProducto.desc_espec} onChange={e => setFormProducto({...formProducto, desc_espec: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', resize: 'vertical', fontSize: '14px', fontFamily: 'inherit' }}></textarea>
+                    <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris, fontWeight: '500' }}>Descripción Detallada</label>
+                    <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${colors.borderInputs}` }}>
+                      <ReactQuill 
+                        theme="snow" 
+                        value={formProducto.description} 
+                        onChange={(content) => setFormProducto({...formProducto, description: content})} 
+                        style={{ height: '200px', marginBottom: '40px' }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -978,11 +935,10 @@ export default function AdminPanel() {
                       <input 
                         type="file" 
                         accept="image/*" 
-                        multiple // <-- ESTO PERMITE SELECCIONAR VARIAS
+                        multiple 
                         onChange={e => {
-                          // Convertir el FileList a un Array real
                           const archivos = Array.from(e.target.files);
-                          archivos.forEach(verificarPesoImagen); // Verificamos peso de todas
+                          archivos.forEach(verificarPesoImagen);
                           setFormProducto({...formProducto, gallery_images: archivos});
                         }} 
                         style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, boxSizing: 'border-box', outline: 'none', fontSize: '13px', cursor: 'pointer' }}
@@ -1046,14 +1002,15 @@ export default function AdminPanel() {
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Detalles / Descripción General</label>
-                  <textarea rows="3" value={productoEditando.desc_detalles} onChange={e => setProductoEditando({...productoEditando, desc_detalles: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', resize: 'vertical', marginBottom: '15px' }}></textarea>
-
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Características (Opcional)</label>
-                  <textarea rows="3" value={productoEditando.desc_carac} onChange={e => setProductoEditando({...productoEditando, desc_carac: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', resize: 'vertical', marginBottom: '15px' }}></textarea>
-
-                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Especificaciones (Opcional)</label>
-                  <textarea rows="3" value={productoEditando.desc_espec} onChange={e => setProductoEditando({...productoEditando, desc_espec: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${colors.borderInputs}`, backgroundColor: colors.bgInputs, color: colors.textoBlanco, outline: 'none', resize: 'vertical' }}></textarea>
+                  <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: colors.textoGris }}>Descripción Detallada</label>
+                  <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${colors.borderInputs}` }}>
+                    <ReactQuill 
+                      theme="snow" 
+                      value={productoEditando.description || ''} 
+                      onChange={(content) => setProductoEditando({...productoEditando, description: content})} 
+                      style={{ height: '200px', marginBottom: '40px' }}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ backgroundColor: colors.bgInputs, padding: '15px', borderRadius: '8px', border: `1px dashed ${colors.borderInputs}`, display: 'flex', flexDirection: esMovil ? 'column' : 'row', gap: '15px', alignItems: esMovil ? 'flex-start' : 'center' }}>
@@ -1072,6 +1029,7 @@ export default function AdminPanel() {
                   </div>
                 </div>
               </form>
+              
               {/* ================= GESTIÓN DE GALERÍA (FOTOS EXTRA) ================= */}
               <div style={{ marginTop: '30px', borderTop: `1px solid ${colors.borderInputs}`, paddingTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -1097,6 +1055,7 @@ export default function AdminPanel() {
                   <p style={{ fontSize: '13px', color: colors.textoGris, margin: 0, fontStyle: 'italic' }}>No hay fotos adicionales en la galería.</p>
                 )}
               </div>
+              
               {/* ================= GESTIÓN DE COLORES / VARIANTES ================= */}
               <div style={{ marginTop: '30px', borderTop: `1px solid ${colors.borderInputs}`, paddingTop: '20px' }}>
                 <h3 style={{ fontSize: '15px', color: colors.colorAcento, marginBottom: '15px' }}>Opciones de Colores / Variantes</h3>
