@@ -64,7 +64,7 @@ export default function Home() {
     }
   });
   const [mostrarCarrito, setMostrarCarrito] = useState(false);
-  const numeroWhatsApp = "595986201213";
+  const numeroWhatsApp = "595983464526";
 
   useEffect(() => {
     const manejarResize = () => setEsMovil(window.innerWidth < 768);

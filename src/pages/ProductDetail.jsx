@@ -212,6 +212,33 @@ export default function ProductDetail() {
 
   if (error || !producto) return <div style={{ padding: '80px 20px', textAlign: 'center', color: colors.colorRojo, backgroundColor: colors.bgPrincipal, minHeight: '100vh' }}>{error || 'El producto no existe.'}</div>;
 
+
+
+  const parseDescriptionForDisplay = (desc) => {
+    if (!desc) return { det: "Este artículo no cuenta con una descripción detallada por el momento.", car: '', esp: '' };
+    const partes1 = desc.split('[CARACTERISTICAS]');
+    let det = partes1[0].trim();
+    let car = '';
+    let esp = '';
+    
+    if (partes1.length > 1) {
+      const partes2 = partes1[1].split('[ESPECIFICACIONES]');
+      car = partes2[0].trim();
+      if (partes2.length > 1) esp = partes2[1].trim();
+    } else {
+      const partes2 = det.split('[ESPECIFICACIONES]');
+      if (partes2.length > 1) {
+        det = partes2[0].trim();
+        esp = partes2[1].trim();
+      }
+    }
+    return { det, car, esp };
+  };
+
+  const descParsed = parseDescriptionForDisplay(producto?.description);
+
+
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: colors.bgPrincipal, color: colors.textoBlanco, fontFamily: 'system-ui, sans-serif' }}>
       
@@ -373,9 +400,33 @@ export default function ProductDetail() {
                 )}
               </div>
 
-            <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 30px 0' }}>
-              {producto.description || "Este artículo no cuenta con una descripción detallada por el momento. Comunícate con nuestros asesores para recibir más detalles."}
-            </p>
+            {/* --- SECCIÓN DE DETALLES Y ESPECIFICACIONES --- */}
+            <div style={{ marginBottom: '30px' }}>
+              <div style={{ borderBottom: `2px solid ${colors.colorAcento}`, paddingBottom: '8px', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', color: colors.textoBlanco, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Detalles</h3>
+              </div>
+              <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0' }}>
+                {descParsed.det}
+              </p>
+
+              {descParsed.car && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: colors.textoBlanco }}>Características:</h4>
+                  <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0', paddingLeft: '10px' }}>
+                    {descParsed.car}
+                  </p>
+                </>
+              )}
+
+              {descParsed.esp && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: colors.textoBlanco }}>Especificaciones:</h4>
+                  <p style={{ whiteSpace: 'pre-wrap', fontSize: '15px', lineHeight: '1.6', color: colors.textoGris, margin: '0 0 20px 0', paddingLeft: '10px' }}>
+                    {descParsed.esp}
+                  </p>
+                </>
+              )}
+            </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
